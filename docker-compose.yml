@@ -1,0 +1,38 @@
+services:
+  auth-service:
+    build:
+      context: ./auth-service
+      dockerfile: Dockerfile
+      target: dev
+    container_name: ticketdsaster-auth-service
+    ports:
+      - "4000:4000"
+    env_file:
+      - ./auth-service/.env
+    environment:
+      - NODE_ENV=development
+    volumes:
+      - ./auth-service/src:/app/src
+    networks:
+      - dsaster-net
+
+  # Placeholders para cuando Aura y SubAgentes conecten sus servicios
+  # y necesiten validar el JWT emitido por auth-service.
+  #
+  # event-service:
+  #   build: ./event-service
+  #   environment:
+  #     - JWT_SECRET=${JWT_SECRET}
+  #   networks:
+  #     - dsaster-net
+  #
+  # venue-service:
+  #   build: ./venue-service
+  #   environment:
+  #     - JWT_SECRET=${JWT_SECRET}
+  #   networks:
+  #     - dsaster-net
+
+networks:
+  dsaster-net:
+    driver: bridge
