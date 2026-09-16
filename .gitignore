@@ -4,3 +4,6 @@ npm-debug.log*
 dist/
 coverage/
 .DS_Store
+AGENTS.md
+CLAUDE.md
+SPEC.md
