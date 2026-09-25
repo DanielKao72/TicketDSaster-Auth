@@ -47,9 +47,10 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          ASSET="openapi-${GITHUB_REF_NAME}.json"
-          cp auth-service/dist/openapi.json "$ASSET"
+          cp auth-service/dist/openapi.json "openapi-${GITHUB_REF_NAME}.json"
+          cp auth-service/dist/openapi.yaml "openapi-${GITHUB_REF_NAME}.yaml"
           gh release create "$GITHUB_REF_NAME" \
             --title "$GITHUB_REF_NAME" \
             --notes-file release-notes.md \
-            "$ASSET"
+            "openapi-${GITHUB_REF_NAME}.json" \
+            "openapi-${GITHUB_REF_NAME}.yaml"
