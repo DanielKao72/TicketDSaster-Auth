@@ -1,0 +1,55 @@
+name: Release
+
+on:
+  push:
+    tags: ['v*.*.*']
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v5
+        with:
+          node-version-file: auth-service/.nvmrc
+          cache: npm
+          cache-dependency-path: auth-service/package-lock.json
+
+      - name: Install dependencies
+        working-directory: auth-service
+        run: npm ci
+
+      - name: Generate OpenAPI definition
+        working-directory: auth-service
+        run: API_VERSION="${GITHUB_REF_NAME#v}" npm run openapi
+
+      - name: Build release notes
+        run: |
+          PREV=$(git describe --tags --abbrev=0 "${GITHUB_REF_NAME}^" 2>/dev/null || true)
+          if [ -n "$PREV" ]; then
+            RANGE="$PREV..$GITHUB_REF_NAME"
+            echo "## Changes since $PREV" > release-notes.md
+          else
+            RANGE="$GITHUB_REF_NAME"
+            echo "## Changes" > release-notes.md
+          fi
+          git log "$RANGE" --no-merges --pretty='- %s (%h)' >> release-notes.md
+
+      - name: Create GitHub release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          ASSET="openapi-${GITHUB_REF_NAME}.json"
+          cp auth-service/dist/openapi.json "$ASSET"
+          gh release create "$GITHUB_REF_NAME" \
+            --title "$GITHUB_REF_NAME" \
+            --notes-file release-notes.md \
+            "$ASSET"
