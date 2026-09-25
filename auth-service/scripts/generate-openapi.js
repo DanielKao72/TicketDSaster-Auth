@@ -1,6 +1,7 @@
 const fs = require('node:fs');
 const path = require('node:path');
 const swaggerJsdoc = require('swagger-jsdoc');
+const YAML = require('yaml');
 const { version } = require('../package.json');
 
 const spec = swaggerJsdoc({
@@ -18,4 +19,5 @@ const spec = swaggerJsdoc({
 const outDir = path.join(__dirname, '../dist');
 fs.mkdirSync(outDir, { recursive: true });
 fs.writeFileSync(path.join(outDir, 'openapi.json'), JSON.stringify(spec, null, 2));
-console.log(`OpenAPI ${spec.info.version} written to dist/openapi.json`);
+fs.writeFileSync(path.join(outDir, 'openapi.yaml'), YAML.stringify(spec));
+console.log(`OpenAPI ${spec.info.version} written to dist/openapi.json and dist/openapi.yaml`);
