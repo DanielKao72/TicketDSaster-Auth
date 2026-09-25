@@ -1,4 +1,11 @@
-const { hashPassword } = require('../../infrastructure/security/password-hasher');
+//const { hashPassword } = require('../../infrastructure/security/password-hasher');
+
+const bcrypt = require('bcrypt');
+const SALT_ROUNDS = 10;
+
+async function hashPassword(plainPassword) {
+  return bcrypt.hash(plainPassword, SALT_ROUNDS);
+}
 
 class UserAlreadyExistsError extends Error {
   constructor(username) {
