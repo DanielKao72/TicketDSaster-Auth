@@ -1,7 +1,7 @@
 const { loginPartner, InvalidCredentialsError } = require('../../../application/use-cases/login-partner');
 
 function makeLoginController({ userRepository, credentialRepository }) {
-  return async function loginController(req, res) {
+  return async function loginController(req, res, next) {
     const { username, password } = req.body;
 
     if (!username || !password) {
@@ -15,7 +15,7 @@ function makeLoginController({ userRepository, credentialRepository }) {
       if (err instanceof InvalidCredentialsError) {
         return res.status(401).json({ error: err.message });
       }
-      throw err;
+      return next(err);
     }
   };
 }
