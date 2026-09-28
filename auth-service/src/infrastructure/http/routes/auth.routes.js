@@ -1,3 +1,15 @@
+const { Router } = require("express");
+const {
+  validateTokenHandler,
+  getJwksContractHandler,
+} = require("../controllers/auth.controller");
+
+function createAuthRoutes() {
+  const router = Router();
+
+  router.post("/validate", validateTokenHandler);
+  router.get("/.well-known/jwks.json", getJwksContractHandler);
+
 const { Router } = require('express');
 const { makeLoginController } = require('../controllers/login.controller');
 const { makeRegisterController } = require('../controllers/register.controller');
