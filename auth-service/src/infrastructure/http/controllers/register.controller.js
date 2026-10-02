@@ -11,6 +11,9 @@ function makeRegisterController({ userRepository, credentialRepository, invitati
     if (!username || !password || !invitationCode) {
       return res.status(400).json({ error: 'username, password and invitationCode are required' });
     }
+    if ([username, password, invitationCode].some((field) => typeof field !== 'string')) {
+      return res.status(400).json({ error: 'username, password and invitationCode must be strings' });
+    }
 
     try {
       const user = await registerPartner({

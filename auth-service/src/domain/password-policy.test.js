@@ -17,4 +17,9 @@ describe('password-policy', () => {
     assert.throws(() => validatePasswordPolicy(''), DomainError);
     assert.throws(() => validatePasswordPolicy(undefined), DomainError);
   });
+
+  test('lanza DomainError si el password no es un string', () => {
+    assert.throws(() => validatePasswordPolicy(12345678), DomainError);
+    assert.throws(() => validatePasswordPolicy(['12345678']), DomainError);
+  });
 });

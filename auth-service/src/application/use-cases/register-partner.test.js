@@ -183,4 +183,27 @@ describe('registerPartner', () => {
     assert.equal(userRepository._created.length, 0);
     assert.equal(invitation.used, false);
   });
+
+  test('PA-06: rechaza un password que no es string sin dejar un usuario huérfano', async () => {
+    const invitation = new Invitation({ code: 'INV-7', role: ROLES.ORGANIZER });
+    const userRepository = makeFakeUserRepository();
+    const credentialRepository = makeFakeCredentialRepository();
+    const invitationRepository = makeFakeInvitationRepository([invitation]);
+
+    await assert.rejects(
+      () => registerPartner({
+        username: 'ana',
+        password: 12345678,
+        invitationCode: 'INV-7',
+        userRepository,
+        credentialRepository,
+        invitationRepository,
+      }),
+      DomainError,
+    );
+
+    assert.equal(userRepository._created.length, 0);
+    assert.equal(credentialRepository._saved.length, 0);
+    assert.equal(invitation.used, false);
+  });
 });

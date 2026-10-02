@@ -44,10 +44,12 @@ async function registerPartner({
   // PA-04-T1
   const assignedRole = invitation.role;
 
+  // Hash before creating the user: if hashing fails, no user is left behind
+  // without a credential, blocking the username.
+  const passwordHash = await hashPassword(password);
+
   // PA-02-T1
   const user = await userRepository.create({ username, role: assignedRole });
-
-  const passwordHash = await hashPassword(password);
   await credentialRepository.create({ userId: user.id, passwordHash });
 
   // PA-03-T1
