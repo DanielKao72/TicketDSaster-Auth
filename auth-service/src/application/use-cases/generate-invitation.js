@@ -19,7 +19,6 @@ function createGenerateInvitation({ invitationRepository, generateInvitationCode
     for (let attempt = 1; attempt <= MAX_CODE_ATTEMPTS; attempt += 1) {
       const code = generateInvitationCode();
 
-      // eslint-disable-next-line no-await-in-loop
       if (!(await invitationRepository.existsByCode(code))) {
         return invitationRepository.save(new Invitation({ code, role }));
       }

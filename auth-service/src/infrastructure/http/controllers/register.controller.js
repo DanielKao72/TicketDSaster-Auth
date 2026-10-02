@@ -5,11 +5,14 @@ const {
 } = require('../../../application/use-cases/register-partner');
 
 function makeRegisterController({ userRepository, credentialRepository, invitationRepository }) {
-  return async function registerController(req, res) {
+  return async function registerController(req, res, next) {
     const { username, password, invitationCode } = req.body;
 
     if (!username || !password || !invitationCode) {
       return res.status(400).json({ error: 'username, password and invitationCode are required' });
+    }
+    if ([username, password, invitationCode].some((field) => typeof field !== 'string')) {
+      return res.status(400).json({ error: 'username, password and invitationCode must be strings' });
     }
 
     try {
@@ -29,7 +32,7 @@ function makeRegisterController({ userRepository, credentialRepository, invitati
       if (err instanceof InvalidInvitationError) {
         return res.status(400).json({ error: err.message });
       }
-      throw err;
+      return next(err);
     }
   };
 }
