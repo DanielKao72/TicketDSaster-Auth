@@ -86,6 +86,18 @@ describe('POST /invitations', () => {
     assert.equal(response.status, 400);
   });
 
+  test('responde 400 si el body no es JSON válido', async () => {
+    const response = await fetch(`${baseUrl}/invitations`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: '{"role": "ORGANIZER"',
+    });
+    const body = await response.json();
+
+    assert.equal(response.status, 400);
+    assert.equal(body.error, 'Malformed JSON body');
+  });
+
   test('no expone la generación por GET /invitations', async () => {
     const response = await fetch(`${baseUrl}/invitations`);
 
