@@ -28,6 +28,23 @@ function createApp({
     generateInvitationCode,
   });
 
+  /**
+   * @openapi
+   * /health:
+   *   get:
+   *     summary: Health check
+   *     responses:
+   *       200:
+   *         description: Service is up
+   *         content:
+   *           application/json:
+   *             schema:
+   *               type: object
+   *               properties:
+   *                 status:
+   *                   type: string
+   *                   example: ok
+   */
   app.get('/health', (req, res) => {
     res.status(200).json({ status: 'ok' });
   });
