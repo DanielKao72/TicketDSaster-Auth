@@ -1,11 +1,5 @@
-//const { hashPassword } = require('../../infrastructure/security/password-hasher');
-
-const bcrypt = require('bcrypt');
-const SALT_ROUNDS = 10;
-
-async function hashPassword(plainPassword) {
-  return bcrypt.hash(plainPassword, SALT_ROUNDS);
-}
+const { hashPassword } = require('../../infrastructure/security/password-hasher');
+const { validatePasswordPolicy } = require('../../domain/password-policy');
 
 class UserAlreadyExistsError extends Error {
   constructor(username) {
@@ -29,6 +23,9 @@ async function registerPartner({
   credentialRepository,
   invitationRepository,
 }) {
+  // PA-06: rejected before touching any store
+  validatePasswordPolicy(password);
+
   // PA-05-T1
   const existingUser = await userRepository.findByUsername(username);
   if (existingUser) {

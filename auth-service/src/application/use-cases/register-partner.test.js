@@ -7,6 +7,7 @@ const {
   InvalidInvitationError,
 } = require('./register-partner');
 const Invitation = require('../../domain/entities/Invitation');
+const DomainError = require('../../domain/errors/DomainError');
 const { ROLES } = require('../../domain/roles');
 
 function makeFakeUserRepository(existingUsers = []) {
@@ -159,5 +160,27 @@ describe('registerPartner', () => {
 
     const stillFresh = await invitationRepository.findByCode('INV-5');
     assert.equal(stillFresh.used, false);
+  });
+
+  test('PA-06: rechaza passwords cortos sin crear usuario ni consumir el codigo', async () => {
+    const invitation = new Invitation({ code: 'INV-6', role: ROLES.ORGANIZER });
+    const userRepository = makeFakeUserRepository();
+    const credentialRepository = makeFakeCredentialRepository();
+    const invitationRepository = makeFakeInvitationRepository([invitation]);
+
+    await assert.rejects(
+      () => registerPartner({
+        username: 'ana',
+        password: 'short',
+        invitationCode: 'INV-6',
+        userRepository,
+        credentialRepository,
+        invitationRepository,
+      }),
+      DomainError,
+    );
+
+    assert.equal(userRepository._created.length, 0);
+    assert.equal(invitation.used, false);
   });
 });

@@ -5,7 +5,7 @@ const {
 } = require('../../../application/use-cases/register-partner');
 
 function makeRegisterController({ userRepository, credentialRepository, invitationRepository }) {
-  return async function registerController(req, res) {
+  return async function registerController(req, res, next) {
     const { username, password, invitationCode } = req.body;
 
     if (!username || !password || !invitationCode) {
@@ -29,7 +29,7 @@ function makeRegisterController({ userRepository, credentialRepository, invitati
       if (err instanceof InvalidInvitationError) {
         return res.status(400).json({ error: err.message });
       }
-      throw err;
+      return next(err);
     }
   };
 }
