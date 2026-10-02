@@ -9,6 +9,9 @@ function makeLoginController({ userRepository, credentialRepository }) {
     if (!username || !password) {
       return res.status(400).json({ error: 'username and password are required' });
     }
+    if (typeof username !== 'string' || typeof password !== 'string') {
+      return res.status(400).json({ error: 'username and password must be strings' });
+    }
 
     try {
       const user = await loginPartner({ username, password, userRepository, credentialRepository });

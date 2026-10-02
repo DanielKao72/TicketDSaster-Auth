@@ -50,6 +50,17 @@ describe('Partner flow: invitation → register → login → validate', () => {
     assert.equal(status, 400);
   });
 
+  test('POST /auth/register rechaza un password no string con 400 y no bloquea el username', async () => {
+    const { status, body } = await post('/auth/register', {
+      username: 'organizer1',
+      password: 12345678,
+      invitationCode,
+    });
+
+    assert.equal(status, 400);
+    assert.equal(body.error, 'username, password and invitationCode must be strings');
+  });
+
   test('POST /auth/register registra al partner con el rol de la invitacion', async () => {
     const { status, body } = await post('/auth/register', {
       username: 'organizer1',
@@ -88,6 +99,13 @@ describe('Partner flow: invitation → register → login → validate', () => {
     const { status } = await post('/auth/login', { username: 'organizer1', password: 'wrongPassword' });
 
     assert.equal(status, 401);
+  });
+
+  test('POST /auth/login responde 400 con un password no string', async () => {
+    const { status, body } = await post('/auth/login', { username: 'organizer1', password: 12345678 });
+
+    assert.equal(status, 400);
+    assert.equal(body.error, 'username and password must be strings');
   });
 
   test('POST /auth/login devuelve un JWT Bearer', async () => {
