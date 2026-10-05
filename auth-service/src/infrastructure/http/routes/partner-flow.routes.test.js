@@ -3,10 +3,12 @@ const assert = require('node:assert/strict');
 const http = require('node:http');
 
 const createApp = require('../../../app');
+const { staff } = require('../../../config/env');
 
 // End-to-end partner flow over the real Express app: invitation (PA-01) →
 // registration (PA-02..PA-06) → login (PA-07) → downstream validation (PA-08).
-// The tests share one app instance and run in order.
+// The tests share one app instance and run in order. Invitations are generated
+// with the configured staff credential (PA-01-T2), like a real staff member.
 describe('Partner flow: invitation → register → login → validate', () => {
   let server;
   let baseUrl;
@@ -14,13 +16,20 @@ describe('Partner flow: invitation → register → login → validate', () => {
   let accessToken;
   let registeredUserId;
 
-  async function post(path, body) {
+  const staffAuthorization = `Basic ${Buffer.from(`${staff.username}:${staff.password}`).toString('base64')}`;
+
+  async function post(path, body, headers = {}) {
     const response = await fetch(`${baseUrl}${path}`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: { 'Content-Type': 'application/json', ...headers },
       body: JSON.stringify(body),
     });
     return { status: response.status, body: await response.json() };
+  }
+
+  // PA-01-T2: only staff can generate invitations.
+  function postInvitation(body) {
+    return post('/invitations', body, { Authorization: staffAuthorization });
   }
 
   before(async () => {
@@ -33,8 +42,14 @@ describe('Partner flow: invitation → register → login → validate', () => {
     await new Promise((resolve) => server.close(resolve));
   });
 
+  test('POST /invitations rechaza con 401 a quien no es staff', async () => {
+    const { status } = await post('/invitations', { role: 'ORGANIZER' });
+
+    assert.equal(status, 401);
+  });
+
   test('POST /invitations genera un codigo ORGANIZER', async () => {
-    const { status, body } = await post('/invitations', { role: 'ORGANIZER' });
+    const { status, body } = await postInvitation({ role: 'ORGANIZER' });
 
     assert.equal(status, 201);
     invitationCode = body.code;
@@ -75,7 +90,7 @@ describe('Partner flow: invitation → register → login → validate', () => {
   });
 
   test('POST /auth/register responde 409 si el username ya existe', async () => {
-    const { body: invitation } = await post('/invitations', { role: 'VENUE_OWNER' });
+    const { body: invitation } = await postInvitation({ role: 'VENUE_OWNER' });
     const { status } = await post('/auth/register', {
       username: 'organizer1',
       password: 'mySecret123',
