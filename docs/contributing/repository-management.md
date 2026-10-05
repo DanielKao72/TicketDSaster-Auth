@@ -48,6 +48,10 @@ docs(readme): update setup instructions
 chore(docker): bump node base image to 20-alpine
 ```
 
+**Enforcement:** [commitlint](https://commitlint.js.org) (`@commitlint/config-conventional`) checks every message:
+
+- **Locally:** a husky `commit-msg` hook rejects non-conforming commits. It is installed automatically by `npm install` in `auth-service/`.
+- **In CI:** `.github/workflows/commitlint.yml` lints every commit of a PR to `main` or `develop` **and the PR title**, because the PR title becomes the squash commit message.
 
 ## Pull Request Workflow
 
@@ -60,6 +64,7 @@ chore(docker): bump node base image to 20-alpine
 4. PR must pass:
    - Linting (`npm run lint`)
    - Tests (`npm test`)
+   - Commitlint (PR commits and PR title)
    - Build of the Docker image
 5. At least **one approval** is required before merging.
 6. Use **Squash and Merge** into `main` to keep history clean — the squash commit message must follow Conventional Commits.
