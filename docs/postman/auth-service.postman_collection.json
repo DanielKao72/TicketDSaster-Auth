@@ -1,7 +1,7 @@
 {
   "info": {
     "name": "TicketDSaster Auth Service",
-    "description": "Casos de prueba del Auth Service. Ejecutar la colección completa con el Runner, en orden: cada carpeta usa variables que guardan las anteriores. Antes de ejecutar: ajustar `baseUrl` y poner en `jwtSecret` el mismo JWT_SECRET del .env (lo usa VAL-07). Detalle de cada caso en docs/testing/casos-de-prueba.md.",
+    "description": "Casos de prueba del Auth Service. Ejecutar la colección completa con el Runner, en orden: cada carpeta usa variables que guardan las anteriores. Antes de ejecutar: ajustar `baseUrl`, poner en `jwtSecret` el mismo JWT_SECRET del .env (lo usa VAL-07) y en `staffUsername` / `staffPassword` los mismos STAFF_USERNAME / STAFF_PASSWORD del .env (los usa la carpeta 02, PA-01-T2). Detalle de cada caso en docs/testing/casos-de-prueba.md.",
     "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
   },
   "variable": [
@@ -11,6 +11,14 @@
     },
     {
       "key": "jwtSecret",
+      "value": ""
+    },
+    {
+      "key": "staffUsername",
+      "value": ""
+    },
+    {
+      "key": "staffPassword",
       "value": ""
     },
     {
@@ -89,7 +97,22 @@
     },
     {
       "name": "02 · Invitaciones (POST /invitations)",
-      "description": "PA-01. Hoy no exige credencial de staff (PA-01-T2 pendiente).",
+      "description": "PA-01 / PA-01-T2. Solo el staff genera invitaciones: la carpeta envía Basic Auth con {{staffUsername}} y {{staffPassword}} (INV-01 a INV-09). INV-10 a INV-14 prueban los rechazos y sobrescriben la autenticación.",
+      "auth": {
+        "type": "basic",
+        "basic": [
+          {
+            "key": "username",
+            "value": "{{staffUsername}}",
+            "type": "string"
+          },
+          {
+            "key": "password",
+            "value": "{{staffPassword}}",
+            "type": "string"
+          }
+        ]
+      },
       "item": [
         {
           "name": "INV-01 · Genera invitación VENUE_OWNER",
@@ -353,6 +376,198 @@
             }
           ],
           "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\"role\": \"ORGANIZER\""
+            },
+            "url": "{{baseUrl}}/invitations"
+          }
+        },
+        {
+          "name": "INV-10 · Sin credencial de staff → 401",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('HTTP 401', () => pm.response.to.have.status(401));",
+                  "pm.test('error = \"Staff credential required\"', () => pm.expect(pm.response.json().error).to.eql(\"Staff credential required\"));",
+                  "pm.test('WWW-Authenticate anuncia Basic', () => pm.expect(pm.response.headers.get('WWW-Authenticate')).to.match(/^Basic realm=/));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "auth": {
+              "type": "noauth"
+            },
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"role\": \"ORGANIZER\"\n}"
+            },
+            "url": "{{baseUrl}}/invitations"
+          }
+        },
+        {
+          "name": "INV-11 · Password de staff incorrecto → 401",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('HTTP 401', () => pm.response.to.have.status(401));",
+                  "pm.test('error = \"Invalid staff credential\"', () => pm.expect(pm.response.json().error).to.eql(\"Invalid staff credential\"));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "auth": {
+              "type": "basic",
+              "basic": [
+                {
+                  "key": "username",
+                  "value": "{{staffUsername}}",
+                  "type": "string"
+                },
+                {
+                  "key": "password",
+                  "value": "password-incorrecto",
+                  "type": "string"
+                }
+              ]
+            },
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"role\": \"ORGANIZER\"\n}"
+            },
+            "url": "{{baseUrl}}/invitations"
+          }
+        },
+        {
+          "name": "INV-12 · Username de staff incorrecto → 401 con el mismo mensaje",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('HTTP 401', () => pm.response.to.have.status(401));",
+                  "pm.test('mismo error que INV-11, no revela cuál campo falló', () => pm.expect(pm.response.json().error).to.eql(\"Invalid staff credential\"));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "auth": {
+              "type": "basic",
+              "basic": [
+                {
+                  "key": "username",
+                  "value": "no-soy-staff",
+                  "type": "string"
+                },
+                {
+                  "key": "password",
+                  "value": "{{staffPassword}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"role\": \"ORGANIZER\"\n}"
+            },
+            "url": "{{baseUrl}}/invitations"
+          }
+        },
+        {
+          "name": "INV-13 · Esquema distinto de Basic (Bearer) → 401",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('HTTP 401', () => pm.response.to.have.status(401));",
+                  "pm.test('error = \"Invalid staff credential\"', () => pm.expect(pm.response.json().error).to.eql(\"Invalid staff credential\"));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "un.jwt.cualquiera",
+                  "type": "string"
+                }
+              ]
+            },
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"role\": \"ORGANIZER\"\n}"
+            },
+            "url": "{{baseUrl}}/invitations"
+          }
+        },
+        {
+          "name": "INV-14 · JSON mal formado sin credencial → 401, no 400",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('HTTP 401', () => pm.response.to.have.status(401));",
+                  "pm.test('el guard responde antes que el parser: no es \"Malformed JSON body\"', () => pm.expect(pm.response.json().error).to.eql(\"Staff credential required\"));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "auth": {
+              "type": "noauth"
+            },
             "method": "POST",
             "header": [
               {
@@ -744,10 +959,16 @@
               "script": {
                 "type": "text/javascript",
                 "exec": [
+                  "// PA-01-T2: generating an invitation requires the staff credential (Basic Auth).",
+                  "const cryptoJs = require('crypto-js');",
+                  "const staffCredential = pm.variables.get('staffUsername') + ':' + pm.variables.get('staffPassword');",
                   "pm.sendRequest({",
                   "  url: pm.variables.get('baseUrl') + '/invitations',",
                   "  method: 'POST',",
-                  "  header: { 'Content-Type': 'application/json' },",
+                  "  header: {",
+                  "    'Content-Type': 'application/json',",
+                  "    'Authorization': 'Basic ' + cryptoJs.enc.Base64.stringify(cryptoJs.enc.Utf8.parse(staffCredential)),",
+                  "  },",
                   "  body: { mode: 'raw', raw: JSON.stringify({ role: 'ORGANIZER' }) },",
                   "}, (err, res) => {",
                   "  if (err) { console.error(err); return; }",
