@@ -71,6 +71,7 @@ User
 
 | Method | Endpoint               | Description                                   | Actor                      |
 | ------ | ---------------------- | --------------------------------------------- | -------------------------- |
+| `POST` | `/invitations`         | Generates an invitation code for a role (MVP 03, PA-01) | D-Saster Staff    |
 | `POST` | `/auth/register`       | Registers a new user                          | Fan, Organizer, VenueOwner |
 | `POST` | `/auth/login`          | Authenticates the user and returns a JWT      | All                        |
 | `POST` | `/auth/refresh`        | Renews an expired token                       | All                        |

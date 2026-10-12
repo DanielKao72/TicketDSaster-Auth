@@ -2,7 +2,7 @@ name: CI
 
 on:
   pull_request:
-    branches: [main]
+    branches: [main, develop]
 
 permissions:
   contents: read
@@ -32,3 +32,8 @@ jobs:
 
       - name: Run tests
         run: npm test
+        env:
+          # Dummy values: src/config/env.js fails fast without them and CI has no .env
+          JWT_SECRET: ci-test-secret
+          STAFF_USERNAME: ci-staff
+          STAFF_PASSWORD: ci-staff-password

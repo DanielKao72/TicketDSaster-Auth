@@ -1,0 +1,4 @@
+# Husky runs hooks from the repo root; node_modules and the commitlint config live in auth-service/
+msg_file="$1"
+case "$msg_file" in /*) ;; *) msg_file="$PWD/$msg_file" ;; esac
+cd auth-service && npx --no -- commitlint --edit "$msg_file"
