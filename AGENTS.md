@@ -27,7 +27,7 @@ node --test --test-name-pattern="markUsed" src/domain/...   # single test by nam
 
 Docker, from the repo root: `docker compose up --build` uses the `dev` stage of the Dockerfile, mounts `src/` for hot reload, reads `auth-service/.env` and listens on port 4000. The `runner` stage is the production image.
 
-CI (`.github/workflows/on_pr.yml`) runs `npm ci`, `npm run lint` and `npm test` on PRs to `main` and `develop`. `commitlint.yml` lints the PR commits and the PR title (the squash commit message) against Conventional Commits; locally, `npm install` sets up a husky `commit-msg` hook (`auth-service/.husky/`, config in `auth-service/commitlint.config.js`) that does the same. A tag `v*.*.*` triggers `release.yml`, which publishes the OpenAPI spec.
+CI (`.github/workflows/on_pr.yml`) runs `npm ci`, `npm run lint` and `npm test` on PRs to `main` and `develop`. `commitlint.yml` lints the PR commits and the PR title (the squash commit message) against Conventional Commits; locally, `npm install` sets up a husky `commit-msg` hook (`auth-service/.husky/`, config in `auth-service/commitlint.config.js`) that does the same. A tag `v*.*.*` triggers `release.yml`, which publishes the OpenAPI spec, and `publish-image.yml`, which builds the `runner` stage and pushes it as `ninjava-auth-service` to the tailnet registry (`gateway.tail9a6ddb.ts.net:5000`).
 
 ## Architecture
 
