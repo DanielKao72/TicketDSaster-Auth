@@ -10,22 +10,27 @@ This document defines the coding conventions for the Auth Service, built with **
 
 ## Project Structure
 
+The service follows a **hexagonal (ports & adapters)** layout written in **object-oriented** style:
+
 ```text
-src/
-├── config/ # env, passport strategies config, db config
-├── controllers/ # HTTP request handlers
-├── routes/ # Express route definitions
-├── services/ # Business logic (registration, login, token issuance)
-├── models/ # User schema/model
-├── middlewares/ # Auth guards, error handlers, validators
-├── strategies/ # Passport strategies (local, oauth2, jwt)
-├── utils/ # Helpers (hashing, token signing, etc.)
-└── app.js # Express app setup
-tests/
-Dockerfile
-docker-compose.yml
-.env.example
+auth-service/src/
+├── core/                 # No framework or adapter imports
+│   ├── domain/           # Entities (User, Credential, Invitation), Roles, PasswordPolicy, DomainError
+│   └── use-cases/        # One class per use case with execute(); use-case errors in errors/
+├── adapters/
+│   ├── controllers/      # Translate HTTP in/out of the use cases
+│   ├── repositories/     # Implement the repository ports (in-memory for now)
+│   └── services/         # Implement PasswordHasher, TokenService and CodeGenerator ports
+├── ports/
+│   └── interfaces.js     # Abstract classes every adapter extends
+├── infrastructure/
+│   ├── express/          # App.js (composition root), routes/, middlewares/
+│   ├── config/Env.js     # The only place that reads process.env
+│   └── database/         # Reserved for the real database connection
+└── index.js              # Entry point: builds the App and listens
 ```
+
+Dependencies point inwards: `core` depends only on `ports`; `adapters` and `infrastructure` depend on `core`. Every class receives its collaborators through the constructor, and `infrastructure/express/App.js` is the only place that wires them together.
 
 
 ## Node.js / Express Conventions
@@ -46,15 +51,15 @@ docker-compose.yml
 
 | Element | Convention | Example |
 |---|---|---|
-| Files | kebab-case | `auth.controller.js` |
-| Classes | PascalCase | `UserService` |
-| Functions/variables | camelCase | `hashPassword`, `issueToken` |
+| Files | UpperCamelCase, named after the class they export (except `index.js` and `ports/interfaces.js`) | `LoginController.js`, `RegisterPartner.test.js` |
+| Classes | PascalCase | `RegisterPartner`, `JwtTokenService` |
+| Methods/variables | camelCase | `execute`, `findByUsername` |
 | Constants | UPPER_SNAKE_CASE | `JWT_EXPIRATION_TIME` |
 | Env vars | UPPER_SNAKE_CASE | `JWT_SECRET`, `OAUTH_CLIENT_ID` |
 
 ## Passport / OAuth2 / JWT Conventions
 
-- Each authentication strategy (`local`, `oauth2-google`, `jwt`) lives in its **own file** under `src/strategies/`.
+- Each authentication mechanism lives in its **own class** under `src/infrastructure/express/middlewares/` (e.g. `StaffCredentialGuard`, `JwtAuthenticator`).
 - **Never** hardcode client secrets, JWT secrets, or callback URLs — always read from environment variables (see `.env.example`).
 - JWT payload must be minimal and consistent across the system, since other services (Booking, Event, Venue) depend on it:
 ```json
@@ -66,15 +71,15 @@ docker-compose.yml
   }
 ```
 - Do not put sensitive data (passwords, tokens, PII beyond `sub`/`role`) inside the JWT payload.
-- Token expiration and refresh logic must be centralized in `services/token.service.js`, not duplicated across controllers.
-- Role-based access control (RBAC) middleware (`middlewares/require-role.js`) must be used to protect role-specific routes rather than checking roles inline in controllers.
+- Token expiration and refresh logic must be centralized behind the `TokenService` port (`adapters/services/JwtTokenService.js`), not duplicated across controllers.
+- Role-based access control (RBAC) middleware (e.g. `infrastructure/express/middlewares/RoleGuard.js`) must be used to protect role-specific routes rather than checking roles inline in controllers.
 - Passwords must always be hashed with **bcrypt** (or equivalent) — never stored or logged in plain text.
 
 ## Testing
 
-- Unit tests for services (`services/*.test.js`) — mock the database and external OAuth providers.
-- Integration tests for routes (`routes/*.test.js`) — use a test database or in-memory store.
-- Minimum coverage threshold enforced in CI (e.g. 80%), especially on `auth.service.js` and `token.service.js`.
+- Unit tests for use cases and adapters (`*.test.js` next to the source) — use fakes or in-memory adapters for the ports.
+- Integration tests for routes (`infrastructure/express/routes/*.test.js`) — use a test database or in-memory store.
+- Minimum coverage threshold enforced in CI (e.g. 80%), especially on `core/use-cases/` and `JwtTokenService.js`.
 - Never commit real credentials, tokens, or `.env` files — only `.env.example` with placeholder values.
 
 ## Docker Conventions
@@ -105,7 +110,7 @@ USER appuser
 ENV PORT=3000
 EXPOSE 3000
 HEALTHCHECK CMD wget --spider -q http://localhost:3000/health || exit 1
-CMD ["node", "src/app.js"]
+CMD ["node", "src/index.js"]
 ```
 
 ## Linting & Formatting
