@@ -8,6 +8,21 @@ function required(name, fallback) {
   return value;
 }
 
+function resiliencePolicyConfig(timeoutMs) {
+  return {
+    timeoutMs,
+    retry: {
+      maxAttempts: Number(process.env.RETRY_MAX_ATTEMPTS || 2), // retries after the first call
+      initialDelayMs: Number(process.env.RETRY_INITIAL_DELAY_MS || 100),
+      maxDelayMs: Number(process.env.RETRY_MAX_DELAY_MS || 1000),
+    },
+    breaker: {
+      consecutiveFailures: Number(process.env.CIRCUIT_BREAKER_THRESHOLD || 5),
+      halfOpenAfterMs: Number(process.env.CIRCUIT_BREAKER_HALF_OPEN_AFTER_MS || 10000),
+    },
+  };
+}
+
 module.exports = {
   port: Number(process.env.PORT || 4000),
   nodeEnv: process.env.NODE_ENV || 'development',
@@ -37,6 +52,14 @@ module.exports = {
   // PA-03: an invitation code is only usable for this long after generation.
   invitation: {
     ttlSeconds: Number(process.env.INVITATION_TTL_SECONDS || 300), // 5 min
+  },
+
+  // Fallback(CircuitBreaker(Retry(Timeout(call)))) around every Postgres and
+  // Redis call (infrastructure/resilience/ResiliencePolicy.js). Retry and
+  // circuit breaker settings are shared; only the timeout differs per store.
+  resilience: {
+    postgres: resiliencePolicyConfig(Number(process.env.PG_TIMEOUT_MS || 2000)),
+    redis: resiliencePolicyConfig(Number(process.env.REDIS_TIMEOUT_MS || 500)),
   },
 
   // Tests against a real Postgres and Redis are skipped unless this is set.
