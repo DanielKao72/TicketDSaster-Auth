@@ -15,10 +15,14 @@ class GenerateInvitation {
    * @param {object} deps
    * @param {import('../../ports/interfaces').InvitationRepository} deps.invitationRepository
    * @param {import('../../ports/interfaces').CodeGenerator} deps.codeGenerator
+   * @param {import('../../ports/interfaces').InvitationExpirationStore} deps.invitationExpirationStore
+   * @param {number} deps.invitationTtlSeconds
    */
-  constructor({ invitationRepository, codeGenerator }) {
+  constructor({ invitationRepository, codeGenerator, invitationExpirationStore, invitationTtlSeconds }) {
     this.invitationRepository = invitationRepository;
     this.codeGenerator = codeGenerator;
+    this.invitationExpirationStore = invitationExpirationStore;
+    this.invitationTtlSeconds = invitationTtlSeconds;
   }
 
   async execute({ role }) {
@@ -30,7 +34,14 @@ class GenerateInvitation {
       const code = this.codeGenerator.generate();
 
       if (!(await this.invitationRepository.existsByCode(code))) {
-        return this.invitationRepository.save(new Invitation({ code, role }));
+        const invitation = await this.invitationRepository.save(new Invitation({ code, role }));
+
+        // PA-03: the code is only usable for a limited time. It is started
+        // after the invitation is stored: if this step fails, the code simply
+        // counts as expired and staff generates a new one.
+        await this.invitationExpirationStore.markActive(code, this.invitationTtlSeconds);
+
+        return invitation;
       }
     }
 

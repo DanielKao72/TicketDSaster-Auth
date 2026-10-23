@@ -23,4 +23,22 @@ module.exports = {
   },
 
   bcryptSaltRounds: Number(process.env.BCRYPT_SALT_ROUNDS || 10),
+
+  // Optional on purpose: unit and route tests run on the in-memory stores, so
+  // only src/index.js (through Persistence) connects to these.
+  database: {
+    url: process.env.DATABASE_URL || 'postgres://auth:auth@localhost:55432/auth',
+  },
+
+  redis: {
+    url: process.env.REDIS_URL || 'redis://localhost:6380',
+  },
+
+  // PA-03: an invitation code is only usable for this long after generation.
+  invitation: {
+    ttlSeconds: Number(process.env.INVITATION_TTL_SECONDS || 300), // 5 min
+  },
+
+  // Tests against a real Postgres and Redis are skipped unless this is set.
+  integrationTests: process.env.RUN_INTEGRATION_TESTS === 'true',
 };

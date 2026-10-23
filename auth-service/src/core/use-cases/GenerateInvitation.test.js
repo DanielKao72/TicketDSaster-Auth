@@ -3,6 +3,7 @@ const assert = require('node:assert/strict');
 
 const GenerateInvitation = require('./GenerateInvitation');
 const InMemoryInvitationRepository = require('../../adapters/repositories/InMemoryInvitationRepository');
+const InMemoryInvitationExpirationStore = require('../../adapters/repositories/InMemoryInvitationExpirationStore');
 const DomainError = require('../domain/errors/DomainError');
 
 function buildGenerateInvitation({ codes = ['CODE-0001-AAAA'], invitationRepository } = {}) {
@@ -14,6 +15,8 @@ function buildGenerateInvitation({ codes = ['CODE-0001-AAAA'], invitationReposit
     generateInvitation: new GenerateInvitation({
       invitationRepository: repository,
       codeGenerator: { generate: () => pendingCodes.shift() ?? 'CODE-FALLBACK' },
+      invitationExpirationStore: new InMemoryInvitationExpirationStore(),
+      invitationTtlSeconds: 300,
     }),
   };
 }
@@ -36,6 +39,21 @@ describe('GenerateInvitation', () => {
     const invitation = await generateInvitation.execute({ role: 'ORGANIZER' });
 
     assert.equal(await invitationRepository.findByCode(invitation.code), invitation);
+  });
+
+  // PA-03: the code starts its validity window as soon as it is generated.
+  test('activa el código durante el TTL configurado', async () => {
+    const calls = [];
+    const generateInvitation = new GenerateInvitation({
+      invitationRepository: new InMemoryInvitationRepository(),
+      codeGenerator: { generate: () => 'CODE-0001-AAAA' },
+      invitationExpirationStore: { markActive: async (...args) => calls.push(args) },
+      invitationTtlSeconds: 300,
+    });
+
+    await generateInvitation.execute({ role: 'ORGANIZER' });
+
+    assert.deepEqual(calls, [['CODE-0001-AAAA', 300]]);
   });
 
   test('falla si el rol no es VENUE_OWNER ni ORGANIZER', async () => {
@@ -70,6 +88,8 @@ describe('GenerateInvitation', () => {
     const generateInvitation = new GenerateInvitation({
       invitationRepository,
       codeGenerator: { generate: () => 'CODE-0001-AAAA' },
+      invitationExpirationStore: new InMemoryInvitationExpirationStore(),
+      invitationTtlSeconds: 300,
     });
 
     await generateInvitation.execute({ role: 'ORGANIZER' });

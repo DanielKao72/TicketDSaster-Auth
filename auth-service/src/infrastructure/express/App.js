@@ -7,6 +7,8 @@ const LoginPartner = require('../../core/use-cases/LoginPartner');
 const InMemoryUserRepository = require('../../adapters/repositories/InMemoryUserRepository');
 const InMemoryCredentialRepository = require('../../adapters/repositories/InMemoryCredentialRepository');
 const InMemoryInvitationRepository = require('../../adapters/repositories/InMemoryInvitationRepository');
+const InMemoryInvitationExpirationStore = require('../../adapters/repositories/InMemoryInvitationExpirationStore');
+const InMemoryUnitOfWork = require('../../adapters/repositories/InMemoryUnitOfWork');
 const BcryptPasswordHasher = require('../../adapters/services/BcryptPasswordHasher');
 const JwtTokenService = require('../../adapters/services/JwtTokenService');
 const InvitationCodeGenerator = require('../../adapters/services/InvitationCodeGenerator');
@@ -21,25 +23,37 @@ const InvitationsRoutes = require('./routes/InvitationsRoutes');
 
 // Composition root: adapters and use cases are wired here so the layers below
 // stay free of framework and store details. Dependencies can be overridden,
-// which is what the route tests use to get a clean store per run.
+// which is what the route tests use to get a clean store per run and what
+// src/index.js uses to plug in the Postgres and Redis adapters (Persistence).
 class App {
   constructor({
     userRepository = new InMemoryUserRepository(),
     credentialRepository = new InMemoryCredentialRepository(),
     invitationRepository = new InMemoryInvitationRepository(),
+    invitationExpirationStore = new InMemoryInvitationExpirationStore(),
+    unitOfWork = new InMemoryUnitOfWork({ userRepository, credentialRepository, invitationRepository }),
+    invitationTtlSeconds = config.invitation.ttlSeconds,
     passwordHasher = new BcryptPasswordHasher(),
     tokenService = new JwtTokenService(config.jwt),
     codeGenerator = new InvitationCodeGenerator(),
     staffCredentials = config.staff,
   } = {}) {
-    // The same invitationRepository backs generation (PA-01) and registration
-    // (PA-03), so a generated code can be consumed by /auth/register.
-    const generateInvitation = new GenerateInvitation({ invitationRepository, codeGenerator });
+    // The same invitationRepository and invitationExpirationStore back
+    // generation (PA-01) and registration (PA-03), so a generated code can be
+    // consumed by /auth/register while it has not expired.
+    const generateInvitation = new GenerateInvitation({
+      invitationRepository,
+      codeGenerator,
+      invitationExpirationStore,
+      invitationTtlSeconds,
+    });
     const registerPartner = new RegisterPartner({
       userRepository,
       credentialRepository,
       invitationRepository,
       passwordHasher,
+      invitationExpirationStore,
+      unitOfWork,
     });
     const loginPartner = new LoginPartner({ userRepository, credentialRepository, passwordHasher });
 

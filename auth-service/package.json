@@ -10,6 +10,7 @@
     "test": "node --test",
     "lint": "eslint .",
     "openapi": "node scripts/generate-openapi.js",
+    "migrate": "node src/infrastructure/database/Migrator.js",
     "prepare": "cd .. && husky auth-service/.husky || true",
     "commitlint": "commitlint"
   },
@@ -21,6 +22,8 @@
     "passport": "^0.7.0",
     "passport-jwt": "^4.0.1",
     "passport-local": "^1.0.0",
+    "pg": "^8.23.1",
+    "redis": "^6.3.0",
     "uuid": "^14.0.2"
   },
   "devDependencies": {

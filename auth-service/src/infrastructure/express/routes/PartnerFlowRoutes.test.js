@@ -4,6 +4,7 @@ const http = require('node:http');
 
 const App = require('../App');
 const { staff } = require('../../config/Env');
+const InMemoryInvitationExpirationStore = require('../../../adapters/repositories/InMemoryInvitationExpirationStore');
 
 // End-to-end partner flow over the real Express app: invitation (PA-01) →
 // registration (PA-02..PA-06) → login (PA-07) → downstream validation (PA-08).
@@ -140,5 +141,65 @@ describe('Partner flow: invitation → register → login → validate', () => {
     assert.equal(body.valid, true);
     assert.equal(body.sub, registeredUserId);
     assert.equal(body.role, 'ORGANIZER');
+  });
+});
+
+// PA-03: a code is only usable for the configured TTL. The clock of the
+// in-memory expiration store is moved forward instead of waiting.
+describe('Partner flow: invitation code expiration', () => {
+  let server;
+  let baseUrl;
+  const clock = { now: Date.now() };
+
+  const staffAuthorization = `Basic ${Buffer.from(`${staff.username}:${staff.password}`).toString('base64')}`;
+
+  async function post(path, body, headers = {}) {
+    const response = await fetch(`${baseUrl}${path}`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', ...headers },
+      body: JSON.stringify(body),
+    });
+    return { status: response.status, body: await response.json() };
+  }
+
+  before(async () => {
+    const app = new App({
+      invitationExpirationStore: new InMemoryInvitationExpirationStore({ now: () => clock.now }),
+      invitationTtlSeconds: 300,
+    }).build();
+    server = http.createServer(app);
+    await new Promise((resolve) => server.listen(0, '127.0.0.1', resolve));
+    baseUrl = `http://127.0.0.1:${server.address().port}`;
+  });
+
+  after(async () => {
+    await new Promise((resolve) => server.close(resolve));
+  });
+
+  test('POST /auth/register responde 400 si el codigo caduco', async () => {
+    const { body: invitation } = await post('/invitations', { role: 'ORGANIZER' }, { Authorization: staffAuthorization });
+
+    clock.now += 300 * 1000;
+    const { status, body } = await post('/auth/register', {
+      username: 'late-organizer',
+      password: 'mySecret123',
+      invitationCode: invitation.code,
+    });
+
+    assert.equal(status, 400);
+    assert.equal(body.error, 'Invitation code has expired');
+  });
+
+  test('POST /auth/register acepta un codigo dentro de su TTL', async () => {
+    const { body: invitation } = await post('/invitations', { role: 'ORGANIZER' }, { Authorization: staffAuthorization });
+
+    clock.now += 299 * 1000;
+    const { status } = await post('/auth/register', {
+      username: 'on-time-organizer',
+      password: 'mySecret123',
+      invitationCode: invitation.code,
+    });
+
+    assert.equal(status, 201);
   });
 });
