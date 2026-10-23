@@ -81,7 +81,8 @@
                 "type": "text/javascript",
                 "exec": [
                   "pm.test('HTTP 200', () => pm.response.to.have.status(200));",
-                  "pm.test('status = ok', () => pm.expect(pm.response.json()).to.eql({ status: 'ok' }));"
+                  "pm.test('status = ok', () => pm.expect(pm.response.json().status).to.eql('ok'));",
+                  "pm.test('circuitos de postgres y redis cerrados', () => pm.expect(pm.response.json().dependencies).to.eql({ postgres: 'closed', redis: 'closed' }));"
                 ]
               }
             }

@@ -37,7 +37,12 @@ class App {
     tokenService = new JwtTokenService(config.jwt),
     codeGenerator = new InvitationCodeGenerator(),
     staffCredentials = config.staff,
+    // ResiliencePolicy per store ({ postgres, redis }), from Persistence. Only
+    // read by /health; the in-memory stores used by the tests need none.
+    resilience = {},
   } = {}) {
+    this.resilience = resilience;
+
     // The same invitationRepository and invitationExpirationStore back
     // generation (PA-01) and registration (PA-03), so a generated code can be
     // consumed by /auth/register while it has not expired.
@@ -87,6 +92,10 @@ class App {
      * /health:
      *   get:
      *     summary: Health check
+     *     description: >
+     *       Always 200 while the process is up (it backs the Docker HEALTHCHECK).
+     *       `dependencies` shows the circuit breaker state of each store; the
+     *       status is `degraded` while any of them is not closed.
      *     responses:
      *       200:
      *         description: Service is up
@@ -97,10 +106,24 @@ class App {
      *               properties:
      *                 status:
      *                   type: string
+     *                   enum: [ok, degraded]
      *                   example: ok
+     *                 dependencies:
+     *                   type: object
+     *                   additionalProperties:
+     *                     type: string
+     *                     enum: [closed, open, half-open]
+     *                   example: { postgres: closed, redis: closed }
      */
     app.get('/health', (req, res) => {
-      res.status(200).json({ status: 'ok' });
+      const entries = Object.entries(this.resilience);
+      if (entries.length === 0) {
+        return res.status(200).json({ status: 'ok' });
+      }
+
+      const dependencies = Object.fromEntries(entries.map(([name, policy]) => [name, policy.state]));
+      const degraded = Object.values(dependencies).some((state) => state !== 'closed');
+      return res.status(200).json({ status: degraded ? 'degraded' : 'ok', dependencies });
     });
 
     // Mounted before the global JSON parser on purpose: the invitations router
