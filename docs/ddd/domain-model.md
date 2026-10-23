@@ -20,6 +20,7 @@
 | **Backstage User** | Administrative user: Organizer or Venue Owner |
 | **Session** | Period of validity of a user's authentication (not to be confused with the "Session" in the Sales domain, which refers to the purchase/seat hold) |
 | **Token (JWT)** | Signed credential representing a user's authenticated identity to other contexts |
+| **Invitation** | Single-use code that staff generates for a partner role (Organizer or Venue Owner). It is valid for 5 minutes after generation and is marked *used* once a registration with it succeeds |
 
 ## Relationship with other Bounded Contexts
 

@@ -19,18 +19,22 @@ auth-service/src/
 │   └── use-cases/        # One class per use case with execute(); use-case errors in errors/
 ├── adapters/
 │   ├── controllers/      # Translate HTTP in/out of the use cases
-│   ├── repositories/     # Implement the repository ports (in-memory for now)
-│   └── services/         # Implement PasswordHasher, TokenService and CodeGenerator ports
+│   ├── repositories/     # Repository and UnitOfWork ports: Postgres* adapters and InMemory* test doubles
+│   └── services/         # PasswordHasher, TokenService, CodeGenerator and InvitationExpirationStore (Redis) ports
 ├── ports/
 │   └── interfaces.js     # Abstract classes every adapter extends
 ├── infrastructure/
 │   ├── express/          # App.js (composition root), routes/, middlewares/
 │   ├── config/Env.js     # The only place that reads process.env
-│   └── database/         # Reserved for the real database connection
-└── index.js              # Entry point: builds the App and listens
+│   ├── database/         # Postgres pool, Migrator and migrations/*.sql
+│   ├── cache/            # Redis client
+│   └── Persistence.js    # Connects Postgres + Redis and builds their adapters for App
+└── index.js              # Entry point: connects Persistence, builds the App and listens
 ```
 
-Dependencies point inwards: `core` depends only on `ports`; `adapters` and `infrastructure` depend on `core`. Every class receives its collaborators through the constructor, and `infrastructure/express/App.js` is the only place that wires them together.
+Dependencies point inwards: `core` depends only on `ports`; `adapters` and `infrastructure` depend on `core`. Every class receives its collaborators through the constructor, and `infrastructure/express/App.js` is the only place that wires them into use cases. `infrastructure/Persistence.js` only builds the Postgres and Redis adapters that `src/index.js` hands to `App`; without them, `App` defaults to the in-memory stores, which is what the tests use.
+
+Schema changes go in a new numbered file under `infrastructure/database/migrations/` (`0003_<description>.sql`); never edit a migration that was already applied. These `.sql` files are the only lowercase files under `src/` besides `index.js` and `ports/interfaces.js`.
 
 
 ## Node.js / Express Conventions
