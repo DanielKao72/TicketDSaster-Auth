@@ -65,4 +65,51 @@ describe('LoginPartner', () => {
       InvalidCredentialsError,
     );
   });
+
+  // PA-07: an unknown username pays the same bcrypt cost as a wrong password,
+  // so the response time does not reveal which usernames exist.
+  describe('sin fuga de usuarios por tiempo de respuesta', () => {
+    function makeSpyHasher() {
+      const calls = { hash: 0, compare: 0 };
+      return {
+        calls,
+        hash: async () => {
+          calls.hash += 1;
+          return 'dummy-hash';
+        },
+        compare: async () => {
+          calls.compare += 1;
+          return false;
+        },
+      };
+    }
+
+    test('compara contra un hash ficticio si el username no existe', async () => {
+      const spyHasher = makeSpyHasher();
+      const login = new LoginPartner({
+        userRepository: makeFakeUserRepository({ id: 'u1', username: 'venue1' }),
+        credentialRepository: makeFakeCredentialRepository({ userId: 'u1', passwordHash: 'x' }),
+        passwordHasher: spyHasher,
+      });
+
+      await assert.rejects(() => login.execute({ username: 'no-existe', password: 'x' }), InvalidCredentialsError);
+      await assert.rejects(() => login.execute({ username: 'otro', password: 'x' }), InvalidCredentialsError);
+
+      assert.equal(spyHasher.calls.compare, 2);
+      assert.equal(spyHasher.calls.hash, 1, 'el hash ficticio se calcula una sola vez');
+    });
+
+    test('compara contra un hash ficticio si el usuario no tiene credencial', async () => {
+      const spyHasher = makeSpyHasher();
+      const login = new LoginPartner({
+        userRepository: makeFakeUserRepository({ id: 'u1', username: 'venue1' }),
+        credentialRepository: makeFakeCredentialRepository({ userId: 'otro', passwordHash: 'x' }),
+        passwordHasher: spyHasher,
+      });
+
+      await assert.rejects(() => login.execute({ username: 'venue1', password: 'x' }), InvalidCredentialsError);
+
+      assert.equal(spyHasher.calls.compare, 1);
+    });
+  });
 });
