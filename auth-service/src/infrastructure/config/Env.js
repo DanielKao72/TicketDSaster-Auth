@@ -23,6 +23,16 @@ function resiliencePolicyConfig(timeoutMs) {
   };
 }
 
+function parseTrustProxy(value) {
+  if (value === undefined || value === '' || value === 'false') {
+    return false;
+  }
+  if (value === 'true') {
+    return true;
+  }
+  return /^\d+$/.test(value) ? Number(value) : value;
+}
+
 module.exports = {
   port: Number(process.env.PORT || 4000),
   nodeEnv: process.env.NODE_ENV || 'development',
@@ -38,6 +48,19 @@ module.exports = {
   },
 
   bcryptSaltRounds: Number(process.env.BCRYPT_SALT_ROUNDS || 10),
+
+  // Brute-force protection for POST /auth/login and POST /invitations: after
+  // this many failed attempts from one client IP within the window, the route
+  // answers 429 until the window resets. Counted in memory, per replica.
+  rateLimit: {
+    windowMs: Number(process.env.RATE_LIMIT_WINDOW_MS || 900000), // 15 min
+    maxFailedAttempts: Number(process.env.RATE_LIMIT_MAX_FAILED || 10),
+  },
+
+  // Express 'trust proxy': set it when the service runs behind a reverse
+  // proxy, so the rate limit keys on the client IP and not the proxy's.
+  // 'true' / 'false', a hop count ('1') or a subnet list ('loopback, 10.0.0.0/8').
+  trustProxy: parseTrustProxy(process.env.TRUST_PROXY),
 
   // Optional on purpose: unit and route tests run on the in-memory stores, so
   // only src/index.js (through Persistence) connects to these.

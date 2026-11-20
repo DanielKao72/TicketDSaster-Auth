@@ -8,21 +8,32 @@ const express = require('express');
 // express.json() is mounted here, behind the guard, instead of globally: a
 // caller without a staff credential gets a 401 even when it sends a malformed
 // body, and the server does not parse bodies for requests it will reject.
+//
+// The failed-attempt limiter goes first, so guessing the staff credential is
+// rate limited too: a blocked client gets a 429 before the guard runs.
 class InvitationsRoutes {
   /**
    * @param {object} deps
    * @param {import('../../../adapters/controllers/InvitationsController')} deps.invitationsController
    * @param {import('../middlewares/StaffCredentialGuard')} deps.staffCredentialGuard
+   * @param {import('../middlewares/FailedAttemptLimiter')} deps.invitationsLimiter
    */
-  constructor({ invitationsController, staffCredentialGuard }) {
+  constructor({ invitationsController, staffCredentialGuard, invitationsLimiter }) {
     this.invitationsController = invitationsController;
     this.staffCredentialGuard = staffCredentialGuard;
+    this.invitationsLimiter = invitationsLimiter;
   }
 
   build() {
     const router = express.Router();
 
-    router.post('/', this.staffCredentialGuard.handle, express.json(), this.invitationsController.generate);
+    router.post(
+      '/',
+      this.invitationsLimiter.handle,
+      this.staffCredentialGuard.handle,
+      express.json(),
+      this.invitationsController.generate,
+    );
 
     return router;
   }
