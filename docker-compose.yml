@@ -5,6 +5,8 @@ services:
       dockerfile: Dockerfile
       target: dev
     container_name: ticketdsaster-auth-service
+    # Brings the service back if the process exits (e.g. a fatal error).
+    restart: unless-stopped
     ports:
       - "4000:4000"
     env_file:

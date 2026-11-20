@@ -48,6 +48,21 @@ describe('PostgresUserRepository + PostgresCredentialRepository', { skip: !confi
     await assert.rejects(() => userRepository.create({ username, role: ROLES.VENUE_OWNER }), UserAlreadyExistsError);
   });
 
+  // UsernamePolicy: unique and looked up regardless of case, stored as registered.
+  test('PA-05: el username es único y se busca sin distinguir mayúsculas', async () => {
+    const username = unique('Ana');
+    const created = await userRepository.create({ username, role: ROLES.ORGANIZER });
+
+    const found = await userRepository.findByUsername(username.toLowerCase());
+    assert.equal(found.id, created.id);
+    assert.equal(found.username, username);
+
+    await assert.rejects(
+      () => userRepository.create({ username: username.toUpperCase(), role: ROLES.VENUE_OWNER }),
+      UserAlreadyExistsError,
+    );
+  });
+
   test('PA-06: guarda el hash en users.password_hash y lo lee como Credential', async () => {
     const user = await userRepository.create({ username: unique('ana'), role: ROLES.ORGANIZER });
 

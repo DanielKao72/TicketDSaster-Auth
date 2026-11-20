@@ -51,4 +51,22 @@ describe("JWT Security Module (SETUP-NJ-T4 & PA-08-T1)", () => {
     );
     assert.throws(() => tokenService.verify(fakeToken), jwt.JsonWebTokenError);
   });
+
+  it("firma con HS256", () => {
+    const token = tokenService.generate(mockUser);
+    assert.equal(jwt.decode(token, { complete: true }).header.alg, "HS256");
+  });
+
+  it("rechaza un token firmado con el secreto correcto pero otro algoritmo", () => {
+    const token = jwt.sign({ sub: mockUser.userId, role: mockUser.role }, config.jwt.secret, {
+      algorithm: "HS512",
+      expiresIn: 60,
+    });
+    assert.throws(() => tokenService.verify(token), /invalid algorithm/);
+  });
+
+  it("rechaza un token sin exp aunque la firma sea válida", () => {
+    const token = jwt.sign({ sub: mockUser.userId, role: mockUser.role }, config.jwt.secret);
+    assert.throws(() => tokenService.verify(token), /jwt exp is required/);
+  });
 });

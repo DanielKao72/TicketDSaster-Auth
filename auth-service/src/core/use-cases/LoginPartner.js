@@ -1,3 +1,6 @@
+const { randomUUID } = require('node:crypto');
+
+const UsernamePolicy = require('../domain/UsernamePolicy');
 const InvalidCredentialsError = require('./errors/InvalidCredentialsError');
 
 class LoginPartner {
@@ -14,13 +17,15 @@ class LoginPartner {
   }
 
   async execute({ username, password }) {
-    const user = await this.userRepository.findByUsername(username);
-    if (!user) {
-      throw new InvalidCredentialsError();
-    }
+    // Same normalization as on registration; the lookup is case-insensitive.
+    const user = await this.userRepository.findByUsername(UsernamePolicy.normalize(username));
+    const credential = user ? await this.credentialRepository.findByUserId(user.id) : null;
 
-    const credential = await this.credentialRepository.findByUserId(user.id);
+    // PA-07: an unknown username must take as long as a wrong password, or
+    // the response time reveals which usernames exist. Hash against a dummy
+    // value so both paths pay the same bcrypt cost.
     if (!credential) {
+      await this.passwordHasher.compare(password, await this.#dummyHash());
       throw new InvalidCredentialsError();
     }
 
@@ -30,6 +35,14 @@ class LoginPartner {
     }
 
     return user;
+  }
+
+  // Computed once, on first need, with the same hasher (and cost) as real hashes.
+  #dummyHashPromise;
+
+  #dummyHash() {
+    this.#dummyHashPromise ??= this.passwordHasher.hash(randomUUID());
+    return this.#dummyHashPromise;
   }
 }
 

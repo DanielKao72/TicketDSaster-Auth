@@ -946,7 +946,7 @@
             ],
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"username\": \"edge_{{runId}}\",\n  \"password\": \"abcdefgh\",\n  \"invitationCode\": \"{{spareCode}}\"\n}"
+              "raw": "{\n  \"username\": \"edge_{{runId}}\",\n  \"password\": \"abcdefg1\",\n  \"invitationCode\": \"{{spareCode}}\"\n}"
             },
             "url": "{{baseUrl}}/auth/register",
             "description": "Usa spareCode: si responde 201, también demuestra que REG-04, REG-06 y REG-07 no consumieron el código."
@@ -1155,15 +1155,15 @@
           }
         },
         {
-          "name": "LOG-04 · Username con otras mayúsculas → 401",
+          "name": "LOG-04 · Username con otras mayúsculas → 200",
           "event": [
             {
               "listen": "test",
               "script": {
                 "type": "text/javascript",
                 "exec": [
-                  "pm.test('HTTP 401', () => pm.response.to.have.status(401));",
-                  "pm.test('error = \"Invalid username or password\"', () => pm.expect(pm.response.json().error).to.eql(\"Invalid username or password\"));"
+                  "pm.test('HTTP 200', () => pm.response.to.have.status(200));",
+                  "pm.test('devuelve accessToken', () => pm.expect(pm.response.json().accessToken).to.be.a('string'));"
                 ]
               }
             }
@@ -1264,7 +1264,7 @@
             ],
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"username\": \"edge_{{runId}}\",\n  \"password\": \"abcdefgh\"\n}"
+              "raw": "{\n  \"username\": \"edge_{{runId}}\",\n  \"password\": \"abcdefg1\"\n}"
             },
             "url": "{{baseUrl}}/auth/login"
           }

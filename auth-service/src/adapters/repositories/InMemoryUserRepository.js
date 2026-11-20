@@ -22,9 +22,11 @@ class InMemoryUserRepository extends UserRepository {
     return this.usersById.get(id) ?? null;
   }
 
+  // Case-insensitive, like PostgresUserRepository (UsernamePolicy).
   async findByUsername(username) {
+    const wanted = String(username).toLowerCase();
     for (const user of this.usersById.values()) {
-      if (user.username === username) {
+      if (user.username.toLowerCase() === wanted) {
         return user;
       }
     }

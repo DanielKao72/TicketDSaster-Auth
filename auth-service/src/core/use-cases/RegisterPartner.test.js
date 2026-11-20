@@ -10,6 +10,7 @@ const DomainError = require('../domain/errors/DomainError');
 const { ROLES } = require('../domain/Roles');
 const BcryptPasswordHasher = require('../../adapters/services/BcryptPasswordHasher');
 const InMemoryUnitOfWork = require('../../adapters/repositories/InMemoryUnitOfWork');
+const InMemoryUserRepository = require('../../adapters/repositories/InMemoryUserRepository');
 
 const passwordHasher = new BcryptPasswordHasher();
 
@@ -357,5 +358,64 @@ describe('RegisterPartner', () => {
 
     assert.equal(user.username, 'ana');
     assert.equal(invitation.used, true);
+  });
+
+  describe('UsernamePolicy', () => {
+    test('rechaza un username inválido sin consumir el código', async () => {
+      const invitation = new Invitation({ code: 'INV-13', role: ROLES.ORGANIZER });
+      const userRepository = makeFakeUserRepository();
+
+      for (const username of ['   ', 'ab', 'a'.repeat(51), 'venue owner']) {
+        await assert.rejects(
+          () => registerPartner({
+            username,
+            password: 'mySecret123',
+            invitationCode: 'INV-13',
+            userRepository,
+            credentialRepository: makeFakeCredentialRepository(),
+            invitationRepository: makeFakeInvitationRepository([invitation]),
+          }),
+          DomainError,
+          username,
+        );
+      }
+
+      assert.equal(userRepository._created.length, 0);
+      assert.equal(invitation.used, false);
+    });
+
+    test('guarda el username sin los espacios de los extremos', async () => {
+      const invitation = new Invitation({ code: 'INV-14', role: ROLES.ORGANIZER });
+
+      const user = await registerPartner({
+        username: '  ana  ',
+        password: 'mySecret123',
+        invitationCode: 'INV-14',
+        userRepository: makeFakeUserRepository(),
+        credentialRepository: makeFakeCredentialRepository(),
+        invitationRepository: makeFakeInvitationRepository([invitation]),
+      });
+
+      assert.equal(user.username, 'ana');
+    });
+
+    test('PA-05: un username que solo cambia en mayúsculas ya existe', async () => {
+      const invitation = new Invitation({ code: 'INV-15', role: ROLES.ORGANIZER });
+      const userRepository = new InMemoryUserRepository();
+      await userRepository.create({ username: 'Ana', role: ROLES.ORGANIZER });
+
+      await assert.rejects(
+        () => registerPartner({
+          username: 'ana',
+          password: 'mySecret123',
+          invitationCode: 'INV-15',
+          userRepository,
+          credentialRepository: makeFakeCredentialRepository(),
+          invitationRepository: makeFakeInvitationRepository([invitation]),
+        }),
+        UserAlreadyExistsError,
+      );
+      assert.equal(invitation.used, false);
+    });
   });
 });

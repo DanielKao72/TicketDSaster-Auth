@@ -18,6 +18,7 @@ const TokenController = require('../../adapters/controllers/TokenController');
 const InvitationsController = require('../../adapters/controllers/InvitationsController');
 const StaffCredentialGuard = require('./middlewares/StaffCredentialGuard');
 const ErrorHandler = require('./middlewares/ErrorHandler');
+const FailedAttemptLimiter = require('./middlewares/FailedAttemptLimiter');
 const AuthRoutes = require('./routes/AuthRoutes');
 const InvitationsRoutes = require('./routes/InvitationsRoutes');
 
@@ -37,11 +38,16 @@ class App {
     tokenService = new JwtTokenService(config.jwt),
     codeGenerator = new InvitationCodeGenerator(),
     staffCredentials = config.staff,
+    // { windowMs, maxFailedAttempts } for the failed-attempt limiters.
+    rateLimit = config.rateLimit,
+    // Express 'trust proxy' setting, so the limiters see the real client IP.
+    trustProxy = config.trustProxy,
     // ResiliencePolicy per store ({ postgres, redis }), from Persistence. Only
     // read by /health; the in-memory stores used by the tests need none.
     resilience = {},
   } = {}) {
     this.resilience = resilience;
+    this.trustProxy = trustProxy;
 
     // The same invitationRepository and invitationExpirationStore back
     // generation (PA-01) and registration (PA-03), so a generated code can be
@@ -67,6 +73,7 @@ class App {
     this.invitationsRoutes = new InvitationsRoutes({
       invitationsController: new InvitationsController({ generateInvitation }),
       staffCredentialGuard: new StaffCredentialGuard(staffCredentials),
+      invitationsLimiter: new FailedAttemptLimiter(rateLimit),
     });
 
     this.authRoutes = new AuthRoutes({
@@ -77,6 +84,7 @@ class App {
         expiresInSeconds: config.jwt.expiresInSeconds,
       }),
       tokenController: new TokenController({ tokenService }),
+      loginLimiter: new FailedAttemptLimiter(rateLimit),
     });
 
     this.errorHandler = new ErrorHandler();
@@ -86,11 +94,15 @@ class App {
   // the 404 handler, then the error handler.
   build() {
     const app = express();
+    app.set('trust proxy', this.trustProxy);
+    // Do not advertise the framework (and its version range) to clients.
+    app.disable('x-powered-by');
 
     /**
      * @openapi
      * /health:
      *   get:
+     *     tags: [Operations]
      *     summary: Health check
      *     description: >
      *       Always 200 while the process is up (it backs the Docker HEALTHCHECK).

@@ -50,6 +50,10 @@ Schema changes go in a new numbered file under `infrastructure/database/migratio
   - `401` for invalid credentials
   - `403` for valid credentials but insufficient role/permissions
   - `409` for duplicate user registration
+  - `429` when a client exceeds the rejected credentials (401) allowed on a credential endpoint (`FailedAttemptLimiter`)
+  - `503` with `Retry-After` when Postgres or Redis is unavailable
+- Document every route with an `@openapi` JSDoc block next to its declaration; the published spec is generated from them.
+- Do not advertise the framework: `x-powered-by` stays disabled.
 
 ### Naming Conventions
 
@@ -77,7 +81,9 @@ Schema changes go in a new numbered file under `infrastructure/database/migratio
 - Do not put sensitive data (passwords, tokens, PII beyond `sub`/`role`) inside the JWT payload.
 - Token expiration and refresh logic must be centralized behind the `TokenService` port (`adapters/services/JwtTokenService.js`), not duplicated across controllers.
 - Role-based access control (RBAC) middleware (e.g. `infrastructure/express/middlewares/RoleGuard.js`) must be used to protect role-specific routes rather than checking roles inline in controllers.
-- Passwords must always be hashed with **bcrypt** (or equivalent) — never stored or logged in plain text.
+- Passwords must always be hashed with **bcrypt** (or equivalent) — never stored or logged in plain text. `PasswordPolicy` caps them at 72 bytes because bcrypt ignores the rest.
+- Verify JWTs pinning the algorithm (`algorithms: ['HS256']`) and requiring `exp`.
+- Login must not reveal whether a username exists, neither in the message nor in the response time (compare against a dummy hash).
 
 ## Testing
 

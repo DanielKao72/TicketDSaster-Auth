@@ -96,4 +96,63 @@ describe('GenerateInvitation', () => {
 
     await assert.rejects(() => generateInvitation.execute({ role: 'ORGANIZER' }), DomainError);
   });
+
+  // PA-03: the validity window is started before the invitation is stored, so
+  // a failing store never leaves a code behind that can no longer be used.
+  describe('sin invitaciones huérfanas', () => {
+    test('si falla el store de vigencia no se guarda la invitación', async () => {
+      const invitationRepository = new InMemoryInvitationRepository();
+      const generateInvitation = new GenerateInvitation({
+        invitationRepository,
+        codeGenerator: { generate: () => 'CODE-0001-AAAA' },
+        invitationExpirationStore: {
+          markActive: async () => {
+            throw new Error('redis down');
+          },
+          revoke: async () => {},
+        },
+        invitationTtlSeconds: 300,
+      });
+
+      await assert.rejects(() => generateInvitation.execute({ role: 'ORGANIZER' }), /redis down/);
+      assert.equal(await invitationRepository.existsByCode('CODE-0001-AAAA'), false);
+    });
+
+    test('si falla guardar la invitación se revoca su vigencia', async () => {
+      const invitationExpirationStore = new InMemoryInvitationExpirationStore();
+      const invitationRepository = new InMemoryInvitationRepository();
+      invitationRepository.save = async () => {
+        throw new Error('postgres down');
+      };
+      const generateInvitation = new GenerateInvitation({
+        invitationRepository,
+        codeGenerator: { generate: () => 'CODE-0001-AAAA' },
+        invitationExpirationStore,
+        invitationTtlSeconds: 300,
+      });
+
+      await assert.rejects(() => generateInvitation.execute({ role: 'ORGANIZER' }), /postgres down/);
+      assert.equal(await invitationExpirationStore.isActive('CODE-0001-AAAA'), false);
+    });
+
+    test('un fallo al revocar no oculta el error original', async () => {
+      const invitationRepository = new InMemoryInvitationRepository();
+      invitationRepository.save = async () => {
+        throw new Error('postgres down');
+      };
+      const generateInvitation = new GenerateInvitation({
+        invitationRepository,
+        codeGenerator: { generate: () => 'CODE-0001-AAAA' },
+        invitationExpirationStore: {
+          markActive: async () => {},
+          revoke: async () => {
+            throw new Error('redis down');
+          },
+        },
+        invitationTtlSeconds: 300,
+      });
+
+      await assert.rejects(() => generateInvitation.execute({ role: 'ORGANIZER' }), /postgres down/);
+    });
+  });
 });
