@@ -946,7 +946,7 @@
             ],
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"username\": \"edge_{{runId}}\",\n  \"password\": \"abcdefgh\",\n  \"invitationCode\": \"{{spareCode}}\"\n}"
+              "raw": "{\n  \"username\": \"edge_{{runId}}\",\n  \"password\": \"abcdefg1\",\n  \"invitationCode\": \"{{spareCode}}\"\n}"
             },
             "url": "{{baseUrl}}/auth/register",
             "description": "Usa spareCode: si responde 201, también demuestra que REG-04, REG-06 y REG-07 no consumieron el código."
@@ -1264,7 +1264,7 @@
             ],
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"username\": \"edge_{{runId}}\",\n  \"password\": \"abcdefgh\"\n}"
+              "raw": "{\n  \"username\": \"edge_{{runId}}\",\n  \"password\": \"abcdefg1\"\n}"
             },
             "url": "{{baseUrl}}/auth/login"
           }

@@ -64,7 +64,7 @@ Body: `{ "username", "password", "invitationCode" }`. Orden de validación: camp
 | REG-09 | sin `password` | `400`, mismo mensaje | Campo obligatorio. |
 | REG-10 | sin `invitationCode` | `400`, mismo mensaje | Campo obligatorio. |
 | REG-11 | `{}` | `400`, mismo mensaje | Body vacío. |
-| REG-12 | password `abcdefgh` (8 exactos), código `spareCode` | `201` | Valor límite de la política. Como usa `spareCode`, también demuestra que REG-04, REG-06 y REG-07 no consumieron el código. |
+| REG-12 | password `abcdefg1` (8 exactos, con letra y dígito), código `spareCode` | `201` | Valor límite de la política. Como usa `spareCode`, también demuestra que REG-04, REG-06 y REG-07 no consumieron el código. |
 | REG-13 | `"password": 12345678` (número), código nuevo | `400` `username, password and invitationCode must be strings` | Los tres campos deben ser texto. |
 | REG-14 | mismo username **y mismo código** que REG-13, con password válido | `201` | Un registro rechazado no deja usuarios a medias ni consume el código. |
 
@@ -80,7 +80,7 @@ Body: `{ "username", "password" }`.
 | LOG-04 | username con otras mayúsculas (`ORG_…`) | `401` | Los usernames distinguen mayúsculas. |
 | LOG-05 | sin `password` | `400` `username and password are required` | Campo obligatorio. |
 | LOG-06 | sin `username` | `400`, mismo mensaje | Campo obligatorio. |
-| LOG-07 | usuario de REG-12, `abcdefgh` | `200` | Un usuario creado en el valor límite puede iniciar sesión. |
+| LOG-07 | usuario de REG-12, `abcdefg1` | `200` | Un usuario creado en el valor límite puede iniciar sesión. |
 | LOG-08 | `"password": 12345678` (número) | `400` `username and password must be strings` | Ambos campos deben ser texto. |
 | LOG-09 | `GET /auth/login` | `404` `Not found` | Solo existe `POST`. |
 
