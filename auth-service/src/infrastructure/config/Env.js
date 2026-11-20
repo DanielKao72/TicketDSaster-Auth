@@ -8,9 +8,10 @@ function required(name, fallback) {
   return value;
 }
 
-function resiliencePolicyConfig(timeoutMs) {
+function resiliencePolicyConfig(timeoutMs, budgetMs) {
   return {
     timeoutMs,
+    budgetMs,
     retry: {
       maxAttempts: Number(process.env.RETRY_MAX_ATTEMPTS || 2), // retries after the first call
       initialDelayMs: Number(process.env.RETRY_INITIAL_DELAY_MS || 100),
@@ -77,12 +78,19 @@ module.exports = {
     ttlSeconds: Number(process.env.INVITATION_TTL_SECONDS || 300), // 5 min
   },
 
-  // Fallback(CircuitBreaker(Retry(Timeout(call)))) around every Postgres and
-  // Redis call (infrastructure/resilience/ResiliencePolicy.js). Retry and
-  // circuit breaker settings are shared; only the timeout differs per store.
+  // Fallback(CircuitBreaker(Budget(Retry(Timeout(call))))) around every
+  // Postgres and Redis call (infrastructure/resilience/ResiliencePolicy.js).
+  // Retry and circuit breaker settings are shared; the per-attempt timeout and
+  // the whole-call budget differ per store.
   resilience: {
-    postgres: resiliencePolicyConfig(Number(process.env.PG_TIMEOUT_MS || 2000)),
-    redis: resiliencePolicyConfig(Number(process.env.REDIS_TIMEOUT_MS || 500)),
+    postgres: resiliencePolicyConfig(
+      Number(process.env.PG_TIMEOUT_MS || 2000),
+      Number(process.env.PG_BUDGET_MS || 3000),
+    ),
+    redis: resiliencePolicyConfig(
+      Number(process.env.REDIS_TIMEOUT_MS || 500),
+      Number(process.env.REDIS_BUDGET_MS || 1000),
+    ),
   },
 
   // Tests against a real Postgres and Redis are skipped unless this is set.
