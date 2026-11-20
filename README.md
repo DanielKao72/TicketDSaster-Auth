@@ -52,7 +52,7 @@ Organizer ────┘                          │
 
 * **Input:** HTTP requests from `D-Saster Front` (Fans/Buyers) and from `Backstage` (Organizers and Venue Owners).
 * **Output:** JWT + HTTP communication with the other services, which validate the token to authorize actions.
-* **Persistence:** `User Store` — stores users and their preferences.
+* **Persistence:** `User Store` — PostgreSQL stores users (with their password hash) and invitations (with a `used` flag); Redis keeps each invitation code valid for 5 minutes. Both run with `docker compose up` (see `AGENTS.md`).
 
 ## 📋 Data Model (High Level)
 
@@ -71,7 +71,7 @@ User
 
 | Method | Endpoint               | Description                                   | Actor                      |
 | ------ | ---------------------- | --------------------------------------------- | -------------------------- |
-| `POST` | `/invitations`         | Generates an invitation code for a role (MVP 03, PA-01) | D-Saster Staff    |
+| `POST` | `/invitations`         | Generates an invitation code for a role (MVP 03, PA-01). Requires the staff credential as HTTP Basic Auth (PA-01-T2) | D-Saster Staff    |
 | `POST` | `/auth/register`       | Registers a new user                          | Fan, Organizer, VenueOwner |
 | `POST` | `/auth/login`          | Authenticates the user and returns a JWT      | All                        |
 | `POST` | `/auth/refresh`        | Renews an expired token                       | All                        |

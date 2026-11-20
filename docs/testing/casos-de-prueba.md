@@ -4,17 +4,18 @@ Casos manuales y automatizados para las funcionalidades implementadas. Todos est
 
 ## Cómo ejecutarlos
 
-1. Levanta el servicio (`docker compose up --build` desde la raíz) con `JWT_SECRET`, `STAFF_USERNAME` y `STAFF_PASSWORD` definidos en `auth-service/.env`.
+1. Levanta el servicio (`docker compose up --build` desde la raíz) con `JWT_SECRET`, `STAFF_USERNAME` y `STAFF_PASSWORD` definidos en `auth-service/.env`. El servicio no arranca si falta alguno de los tres.
 2. En Postman: **Import** → el archivo de la colección.
 3. En la pestaña **Variables** de la colección:
    - `baseUrl`: `http://localhost:4000` por defecto.
    - `jwtSecret`: el mismo valor que `JWT_SECRET` del `.env`. Solo lo usa VAL-07.
+   - `staffUsername` y `staffPassword`: los mismos valores que `STAFF_USERNAME` y `STAFF_PASSWORD` del `.env`. La carpeta 02 los envía como Basic Auth (PA-01-T2).
 4. Ejecuta la colección completa con **Run collection**, en orden. Cada carpeta usa variables que guardan las anteriores (códigos de invitación, `userId`, `accessToken`).
 5. Puedes repetir la ejecución sin reiniciar el servicio: H-01 genera un `runId` nuevo y todos los usernames lo llevan como sufijo.
 
-Si ejecutas requests sueltos, respeta las dependencias: los REG necesitan los códigos de INV-01 a INV-03, LOG-01 necesita REG-01 y los VAL necesitan el token de LOG-01.
+Si ejecutas requests sueltos, respeta las dependencias: los REG necesitan los códigos de INV-01 a INV-03, LOG-01 necesita REG-01 y los VAL necesitan el token de LOG-01. Sin `staffUsername` y `staffPassword`, todos los INV responden `401`.
 
-Resultado esperado: **98 aserciones, 0 fallos**.
+Resultado esperado: **110 aserciones, 0 fallos**.
 
 El almacenamiento es en memoria: al reiniciar el contenedor se pierden usuarios, credenciales e invitaciones.
 
@@ -22,11 +23,12 @@ El almacenamiento es en memoria: al reiniciar el contenedor se pierden usuarios,
 
 | ID | Entrada | Resultado esperado | Interpretación |
 |---|---|---|---|
-| H-01 | Sin body | `200` `{"status":"ok"}` | El servicio está arriba. Es el endpoint que usa el `HEALTHCHECK` del Dockerfile. |
+| H-01 | Sin body | `200` `{"status":"ok","dependencies":{"postgres":"closed","redis":"closed"}}` | El servicio está arriba. Es el endpoint que usa el `HEALTHCHECK` del Dockerfile. `dependencies` muestra el estado del circuit breaker de cada store. |
+| H-02 | `docker compose stop redis` y luego 5 `POST /auth/register` | `200` `{"status":"degraded","dependencies":{"postgres":"closed","redis":"open"}}` | Sigue respondiendo `200` para que Docker no reinicie el contenedor, pero avisa de que el circuito de Redis está abierto. El estado cambia a `half-open` y `closed` con la siguiente petición que pase después de `CIRCUIT_BREAKER_HALF_OPEN_AFTER_MS`. |
 
 ## 02 · Invitaciones — `POST /invitations` (PA-01)
 
-Hoy no exige credencial de staff: el guard PA-01-T2 está pendiente, así que cualquiera puede generar invitaciones.
+Solo el staff genera invitaciones (PA-01-T2): la petición debe llevar `Authorization: Basic base64(STAFF_USERNAME:STAFF_PASSWORD)`. INV-01 a INV-09 la envían; INV-10 a INV-14 prueban los rechazos. El guard responde antes que el parser de JSON y que la validación del rol, así que un llamador sin credencial siempre recibe `401`, aunque su body sea inválido.
 
 | ID | Entrada | Resultado esperado | Interpretación |
 |---|---|---|---|
@@ -38,7 +40,12 @@ Hoy no exige credencial de staff: el guard PA-01-T2 está pendiente, así que cu
 | INV-06 | `{"role":"organizer"}` | `400` | El rol distingue mayúsculas. |
 | INV-07 | `{"role":["ORGANIZER"]}` | `400` | Un tipo distinto de string no se acepta. |
 | INV-08 | `Content-Type: text/plain`, body `role=ORGANIZER` | `400` | Sin JSON el body llega vacío y se trata como rol ausente. |
-| INV-09 | `{"role": "ORGANIZER"` (JSON mal formado) | `400` `Malformed JSON body` | Un JSON roto es un error del cliente, no del servidor. Aplica a cualquier `POST`. |
+| INV-09 | `{"role": "ORGANIZER"` (JSON mal formado), con credencial de staff | `400` `Malformed JSON body` | Un JSON roto es un error del cliente, no del servidor. Aplica a cualquier `POST`. |
+| INV-10 | `{"role":"ORGANIZER"}` sin header `Authorization` | `401` `Staff credential required`; header `WWW-Authenticate: Basic realm="D-Saster Staff"` | PA-01.4: sin credencial de staff no se genera la invitación. La petición no llega al handler. |
+| INV-11 | Basic Auth con `STAFF_USERNAME` y un password incorrecto | `401` `Invalid staff credential` | Credencial inválida. |
+| INV-12 | Basic Auth con un username incorrecto y el `STAFF_PASSWORD` correcto | `401` `Invalid staff credential`, **el mismo** mensaje que INV-11 | No revela cuál de los dos campos falló. |
+| INV-13 | Header `Authorization: Bearer <token>` | `401` `Invalid staff credential` | El guard solo acepta Basic. Un JWT de partner no sirve para generar invitaciones. |
+| INV-14 | `{"role": "ORGANIZER"` (JSON mal formado) sin credencial | `401` `Staff credential required`, no `400` | El guard corre antes que `express.json()`: un llamador no autorizado no obtiene detalles de validación ni hace que el servidor procese su body. |
 
 ## 03 · Registro — `POST /auth/register` (PA-02 a PA-06)
 
@@ -103,6 +110,20 @@ Contrato para servicios downstream. Acepta el token en el body (`{"token"}`) o e
 |---|---|---|---|
 | GEN-01 | `GET /no-existe` | `404` `{"error":"Not found"}` | Rutas desconocidas. |
 
+## 08 · Resiliencia — Redis o Postgres caídos
+
+Casos manuales (no están en Postman, porque hay que parar un contenedor). Cada llamada a un store pasa por `Fallback( CircuitBreaker( Retry( Timeout( llamada ) ) ) )`. Los cubren `ResilienceRoutes.test.js` y `ResiliencePolicy.test.js`.
+
+| ID | Entrada | Resultado esperado | Interpretación |
+|---|---|---|---|
+| RES-01 | `docker compose stop redis`; `POST /auth/register` con un código válido | `503` `{"error":"Service temporarily unavailable"}`, header `Retry-After`, en menos de 0,5 s | Fail closed: sin Redis no se sabe si el código expiró, así que no se acepta. El código **no** se consume. |
+| RES-02 | Igual que RES-01, a partir del sexto intento | `503` en unos milisegundos | El circuito está abierto: se responde sin llamar a Redis. |
+| RES-03 | Redis parado; `POST /invitations` | `503` | La invitación no puede empezar su ventana de validez. Si llegó a guardarse en Postgres, cuenta como expirada. |
+| RES-04 | Redis parado; `POST /auth/login` | Igual que con Redis arriba (`200` / `401`) | El login solo usa Postgres. |
+| RES-05 | Redis parado; `POST /auth/validate` y `GET /.well-known/jwks.json` | Igual que con Redis arriba | No tocan ningún store. |
+| RES-06 | `docker compose start redis`; esperar `CIRCUIT_BREAKER_HALF_OPEN_AFTER_MS` (10 s); `POST /auth/register` | `201` | La primera petición es la de prueba del estado semiabierto; al salir bien, el circuito se cierra. |
+| RES-07 | `docker compose stop postgres`; `POST /auth/login` | `503` | Mismo comportamiento con Postgres. |
+
 ## Defectos corregidos
 
 Estos defectos aparecieron al diseñar los casos. Hoy los cubren INV-09, REG-13, REG-14 y LOG-08.
@@ -115,6 +136,5 @@ Estos defectos aparecieron al diseñar los casos. Hoy los cubren INV-09, REG-13,
 
 ## Fuera del alcance de estas pruebas
 
-- **Credencial de staff en `/invitations` (PA-01-T2):** no implementada. Cuando exista, añadir casos de `401` sin credencial y `201` con `STAFF_USERNAME`/`STAFF_PASSWORD`.
 - **Middleware `authenticateJwt`:** existe, pero ninguna ruta lo usa todavía; solo tiene tests unitarios.
 - **Endpoints del README aún no implementados:** `/auth/refresh`, `/auth/me`, `/auth/me/preferences`.
