@@ -1,5 +1,6 @@
 const { describe, it } = require("node:test");
 const assert = require("node:assert/strict");
+const jwt = require("jsonwebtoken");
 const App = require("../App");
 const JwtTokenService = require("../../../adapters/services/JwtTokenService");
 const config = require("../../config/Env");
@@ -46,6 +47,25 @@ describe("PA-08-T2: Downstream JWT verification contract & JWKS", () => {
     assert.equal(res.status, 401);
     const body = await res.json();
     assert.equal(body.valid, false);
+  });
+
+  it("POST /auth/validate rechaza con 401 un token HS512 o sin exp firmado con el secreto", async () => {
+    const claims = { sub: "usr-999", role: "ORGANIZER" };
+    const tokens = [
+      jwt.sign(claims, config.jwt.secret, { algorithm: "HS512", expiresIn: 60 }),
+      jwt.sign(claims, config.jwt.secret),
+    ];
+
+    for (const token of tokens) {
+      const res = await fetch(`${baseUrl}/auth/validate`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ token }),
+      });
+
+      assert.equal(res.status, 401);
+      assert.equal((await res.json()).valid, false);
+    }
   });
 
   it("GET /.well-known/jwks.json entrega el contrato simétrico activo para downstream", async () => {
