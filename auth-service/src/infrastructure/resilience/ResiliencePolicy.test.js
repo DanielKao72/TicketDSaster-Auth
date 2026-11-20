@@ -8,10 +8,17 @@ const UserAlreadyExistsError = require('../../core/use-cases/errors/UserAlreadyE
 
 const silentLogger = { warn: () => {} };
 
-function createPolicy({ timeoutMs = 50, maxAttempts = 2, consecutiveFailures = 3, halfOpenAfterMs = 60 } = {}) {
+function createPolicy({
+  timeoutMs = 50,
+  budgetMs,
+  maxAttempts = 2,
+  consecutiveFailures = 3,
+  halfOpenAfterMs = 60,
+} = {}) {
   return new ResiliencePolicy({
     name: 'redis',
     timeoutMs,
+    budgetMs,
     retry: { maxAttempts, initialDelayMs: 1, maxDelayMs: 2 },
     breaker: { consecutiveFailures, halfOpenAfterMs },
     logger: silentLogger,
@@ -46,6 +53,30 @@ describe('ResiliencePolicy', () => {
       () => policy.execute(() => sleep(200, 'tarde')),
       (error) => error instanceof ServiceUnavailableError && error.dependency === 'redis',
     );
+  });
+
+  // Without a budget, 3 attempts of 50 ms would take 150 ms or more.
+  test('Budget: limita la llamada completa, reintentos incluidos', async () => {
+    const policy = createPolicy({ timeoutMs: 50, maxAttempts: 2, budgetMs: 70 });
+    let attempts = 0;
+    const startedAt = Date.now();
+
+    await assert.rejects(
+      () => policy.execute(() => {
+        attempts += 1;
+        return sleep(200, 'tarde');
+      }),
+      ServiceUnavailableError,
+    );
+
+    assert.ok(Date.now() - startedAt < 140, `tardó ${Date.now() - startedAt} ms`);
+    assert.equal(attempts, 2);
+  });
+
+  test('Budget: no se aplica a las operaciones con { timeout: false }', async () => {
+    const policy = createPolicy({ budgetMs: 10 });
+
+    assert.equal(await policy.execute(() => sleep(40, 'ok'), { idempotent: false, timeout: false }), 'ok');
   });
 
   test('Retry: un fallo transitorio se reintenta y la llamada acaba bien', async () => {

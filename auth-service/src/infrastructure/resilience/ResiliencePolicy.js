@@ -39,8 +39,10 @@ const STATE_NAMES = {
 };
 
 // Resilience for one store (Postgres or Redis), built on cockatiel. Every call
-// runs as Fallback(CircuitBreaker(Retry(Timeout(call)))):
+// runs as Fallback(CircuitBreaker(Budget(Retry(Timeout(call))))):
 // - Timeout: each attempt is abandoned after `timeoutMs`.
+// - Budget: the whole call, retries included, is abandoned after `budgetMs`
+//   (when set). Skipped together with Timeout for `{ timeout: false }`.
 // - Retry: failed attempts are retried `retry.maxAttempts` times with
 //   exponential backoff and jitter. Only for idempotent operations.
 // - CircuitBreaker: after `breaker.consecutiveFailures` failed calls the
@@ -58,12 +60,15 @@ class ResiliencePolicy {
    * @param {{ consecutiveFailures: number, halfOpenAfterMs: number }} options.breaker
    * @param {{ warn: Function }} [options.logger]
    */
-  constructor({ name, timeoutMs, retry: retryOptions, breaker: breakerOptions, logger = console }) {
+  constructor({ name, timeoutMs, budgetMs, retry: retryOptions, breaker: breakerOptions, logger = console }) {
     this.name = name;
     this.retryAfterSeconds = Math.ceil(breakerOptions.halfOpenAfterMs / 1000);
     this.handler = handleWhen((error) => !isBusinessError(error));
 
     this.timeoutPolicy = timeout(timeoutMs, TimeoutStrategy.Aggressive);
+    // Optional: caps the whole call, retries and backoff included, so a store
+    // that hangs answers 503 within budgetMs instead of after every attempt.
+    this.budgetPolicy = budgetMs ? timeout(budgetMs, TimeoutStrategy.Aggressive) : null;
     this.retryPolicy = retry(this.handler, {
       maxAttempts: retryOptions.maxAttempts,
       backoff: new ExponentialBackoff({
@@ -99,6 +104,9 @@ class ResiliencePolicy {
       fallback(this.handler, onFailure ?? (() => this.unavailable())),
       this.circuitBreakerPolicy,
     ];
+    if (withTimeout && this.budgetPolicy) {
+      policies.push(this.budgetPolicy);
+    }
     if (idempotent) {
       policies.push(this.retryPolicy);
     }

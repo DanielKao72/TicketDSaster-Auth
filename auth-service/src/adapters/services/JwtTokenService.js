@@ -3,6 +3,9 @@ const jwt = require("jsonwebtoken");
 const { TokenService } = require("../../ports/interfaces");
 
 class JwtTokenService extends TokenService {
+  // Contrato con los servicios downstream: HMAC-SHA256 con JWT_SECRET.
+  static ALGORITHM = "HS256";
+
   /**
    * @param {object} options
    * @param {string} options.secret secreto HS256 compartido con los servicios downstream
@@ -35,19 +38,31 @@ class JwtTokenService extends TokenService {
     };
 
     return jwt.sign(payload, this.secret, {
+      algorithm: JwtTokenService.ALGORITHM,
       expiresIn: this.expiresInSeconds,
     });
   }
 
   /**
    * Verifica y decodifica un JWT emitido por el servicio.
+   * Solo acepta el algoritmo del contrato (HS256) y exige `exp`: un token
+   * firmado con el secreto pero con otro algoritmo, o sin vencimiento, no
+   * fue emitido por este servicio y se rechaza.
    */
   verify(token) {
     if (!token) {
       throw new Error("Token is required for verification");
     }
 
-    return jwt.verify(token, this.secret);
+    const decoded = jwt.verify(token, this.secret, {
+      algorithms: [JwtTokenService.ALGORITHM],
+    });
+
+    if (typeof decoded.exp !== "number") {
+      throw new jwt.JsonWebTokenError("jwt exp is required");
+    }
+
+    return decoded;
   }
 }
 

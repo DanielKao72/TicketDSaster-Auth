@@ -43,9 +43,11 @@ class PostgresUserRepository extends UserRepository {
     return rows[0] ? toUser(rows[0]) : null;
   }
 
+  // Case-insensitive (UsernamePolicy); backed by the unique index on
+  // lower(username) from migration 0003.
   async findByUsername(username) {
     const { rows } = await this.db.query(
-      'SELECT id, username, role, created_at FROM users WHERE username = $1',
+      'SELECT id, username, role, created_at FROM users WHERE lower(username) = lower($1)',
       [username],
     );
     return rows[0] ? toUser(rows[0]) : null;

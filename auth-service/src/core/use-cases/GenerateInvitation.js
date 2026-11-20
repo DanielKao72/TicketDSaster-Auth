@@ -34,14 +34,21 @@ class GenerateInvitation {
       const code = this.codeGenerator.generate();
 
       if (!(await this.invitationRepository.existsByCode(code))) {
-        const invitation = await this.invitationRepository.save(new Invitation({ code, role }));
+        const invitation = new Invitation({ code, role });
 
-        // PA-03: the code is only usable for a limited time. It is started
-        // after the invitation is stored: if this step fails, the code simply
-        // counts as expired and staff generates a new one.
+        // PA-03: the code is only usable for a limited time. Its window is
+        // started before the invitation is stored, so a failure on either
+        // side leaves nothing behind that needs cleaning up: if Redis fails,
+        // nothing was stored; if the store fails, the Redis key is revoked
+        // (best effort) and expires on its own anyway after the TTL.
         await this.invitationExpirationStore.markActive(code, this.invitationTtlSeconds);
 
-        return invitation;
+        try {
+          return await this.invitationRepository.save(invitation);
+        } catch (error) {
+          await this.invitationExpirationStore.revoke(code).catch(() => {});
+          throw error;
+        }
       }
     }
 
