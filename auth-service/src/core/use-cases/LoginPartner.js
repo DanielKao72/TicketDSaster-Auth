@@ -1,5 +1,6 @@
 const { randomUUID } = require('node:crypto');
 
+const UsernamePolicy = require('../domain/UsernamePolicy');
 const InvalidCredentialsError = require('./errors/InvalidCredentialsError');
 
 class LoginPartner {
@@ -16,7 +17,8 @@ class LoginPartner {
   }
 
   async execute({ username, password }) {
-    const user = await this.userRepository.findByUsername(username);
+    // Same normalization as on registration; the lookup is case-insensitive.
+    const user = await this.userRepository.findByUsername(UsernamePolicy.normalize(username));
     const credential = user ? await this.credentialRepository.findByUserId(user.id) : null;
 
     // PA-07: an unknown username must take as long as a wrong password, or

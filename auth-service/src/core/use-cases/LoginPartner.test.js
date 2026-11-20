@@ -4,6 +4,7 @@ const assert = require('node:assert/strict');
 const LoginPartner = require('./LoginPartner');
 const InvalidCredentialsError = require('./errors/InvalidCredentialsError');
 const BcryptPasswordHasher = require('../../adapters/services/BcryptPasswordHasher');
+const InMemoryUserRepository = require('../../adapters/repositories/InMemoryUserRepository');
 
 const passwordHasher = new BcryptPasswordHasher();
 
@@ -64,6 +65,22 @@ describe('LoginPartner', () => {
       }),
       InvalidCredentialsError,
     );
+  });
+
+  // UsernamePolicy: login ignores case and surrounding whitespace.
+  test('acepta el username sin distinguir mayúsculas ni espacios de los extremos', async () => {
+    const userRepository = new InMemoryUserRepository();
+    const user = await userRepository.create({ username: 'Venue1', role: 'VENUE_OWNER' });
+    const credential = { userId: user.id, passwordHash: await passwordHasher.hash('mySecret123') };
+
+    const result = await loginPartner({
+      username: '  venue1 ',
+      password: 'mySecret123',
+      userRepository,
+      credentialRepository: makeFakeCredentialRepository(credential),
+    });
+
+    assert.equal(result.id, user.id);
   });
 
   // PA-07: an unknown username pays the same bcrypt cost as a wrong password,

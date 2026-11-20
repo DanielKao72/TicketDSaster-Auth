@@ -1,4 +1,5 @@
 const PasswordPolicy = require('../domain/PasswordPolicy');
+const UsernamePolicy = require('../domain/UsernamePolicy');
 const UserAlreadyExistsError = require('./errors/UserAlreadyExistsError');
 const InvalidInvitationError = require('./errors/InvalidInvitationError');
 const ExpiredInvitationError = require('./errors/ExpiredInvitationError');
@@ -29,11 +30,13 @@ class RegisterPartner {
     this.unitOfWork = unitOfWork;
   }
 
-  async execute({ username, password, invitationCode }) {
-    // PA-06: rejected before touching any store
+  async execute({ username: rawUsername, password, invitationCode }) {
+    // PA-02 / PA-06: rejected before touching any store
+    const username = UsernamePolicy.normalize(rawUsername);
+    UsernamePolicy.validate(username);
     PasswordPolicy.validate(password);
 
-    // PA-05-T1
+    // PA-05-T1: the lookup is case-insensitive, so 'Venue1' blocks 'venue1'.
     const existingUser = await this.userRepository.findByUsername(username);
     if (existingUser) {
       throw new UserAlreadyExistsError(username);
