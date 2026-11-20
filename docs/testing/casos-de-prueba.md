@@ -11,7 +11,7 @@ Casos manuales y automatizados para las funcionalidades implementadas. Todos est
    - `jwtSecret`: el mismo valor que `JWT_SECRET` del `.env`. Solo lo usa VAL-07.
    - `staffUsername` y `staffPassword`: los mismos valores que `STAFF_USERNAME` y `STAFF_PASSWORD` del `.env`. La carpeta 02 los envía como Basic Auth (PA-01-T2).
 4. Ejecuta la colección completa con **Run collection**, en orden. Cada carpeta usa variables que guardan las anteriores (códigos de invitación, `userId`, `accessToken`).
-5. Puedes repetir la ejecución sin reiniciar el servicio: H-01 genera un `runId` nuevo y todos los usernames lo llevan como sufijo.
+5. Puedes repetir la ejecución sin reiniciar el servicio: H-01 genera un `runId` nuevo y todos los usernames lo llevan como sufijo. Cada ejecución suma 5 credenciales de staff rechazadas (INV-10 a INV-14) al rate limit de `/invitations`, así que a partir de la tercera ejecución en 15 minutos esos casos responden `429`. Reinicia el servicio entre ejecuciones o sube `RATE_LIMIT_MAX_FAILED` en tu `.env`.
 
 Si ejecutas requests sueltos, respeta las dependencias: los REG necesitan los códigos de INV-01 a INV-03, LOG-01 necesita REG-01 y los VAL necesitan el token de LOG-01. Sin `staffUsername` y `staffPassword`, todos los INV responden `401`.
 
@@ -49,7 +49,7 @@ Solo el staff genera invitaciones (PA-01-T2): la petición debe llevar `Authoriz
 
 ## 03 · Registro — `POST /auth/register` (PA-02 a PA-06)
 
-Body: `{ "username", "password", "invitationCode" }`. Orden de validación: campos obligatorios → tipos (string) → política de contraseña → username duplicado → invitación.
+Body: `{ "username", "password", "invitationCode" }`. Orden de validación: campos obligatorios → tipos (string) → política de username → política de contraseña → username duplicado (sin distinguir mayúsculas) → invitación.
 
 | ID | Entrada | Resultado esperado | Interpretación |
 |---|---|---|---|
@@ -67,6 +67,11 @@ Body: `{ "username", "password", "invitationCode" }`. Orden de validación: camp
 | REG-12 | password `abcdefg1` (8 exactos, con letra y dígito), código `spareCode` | `201` | Valor límite de la política. Como usa `spareCode`, también demuestra que REG-04, REG-06 y REG-07 no consumieron el código. |
 | REG-13 | `"password": 12345678` (número), código nuevo | `400` `username, password and invitationCode must be strings` | Los tres campos deben ser texto. |
 | REG-14 | mismo username **y mismo código** que REG-13, con password válido | `201` | Un registro rechazado no deja usuarios a medias ni consume el código. |
+| REG-15 | password `12345678` | `400` `Password must contain at least one letter and one digit` | PA-06: exige letra y dígito. |
+| REG-16 | password de 73 caracteres ASCII | `400` `Password must be at most 72 bytes long` | bcrypt ignora lo que pasa del byte 72. |
+| REG-17 | username `"   "`, `"ab"`, de 51 caracteres o con espacios internos | `400` (`Username must be between 3 and 50 characters long` o `Username may only contain letters, digits, '.', '_' and '-'`) | Política de username; el código no se consume. |
+| REG-18 | username de REG-01 en mayúsculas, código nuevo | `409` | Los usernames son únicos sin distinguir mayúsculas. |
+| REG-19 | username `"  nuevo_…  "` | `201` con `username:"nuevo_…"` | Se quitan los espacios de los extremos. |
 
 ## 04 · Login — `POST /auth/login` (PA-07)
 
@@ -77,7 +82,7 @@ Body: `{ "username", "password" }`.
 | LOG-01 | usuario de REG-01, `Secret123!` | `200` `{accessToken, tokenType:"Bearer", expiresIn:28800}` | Login correcto. El payload del JWT solo contiene `sub` (id del usuario), `role`, `iat` y `exp`, firmado con HS256. `exp - iat = expiresIn` (8 h por defecto, `JWT_EXPIRES_IN_SECONDS`). |
 | LOG-02 | password incorrecto | `401` `Invalid username or password` | Credenciales inválidas. |
 | LOG-03 | usuario inexistente | `401` con **el mismo** mensaje | No revela si el username existe (evita enumerar usuarios). |
-| LOG-04 | username con otras mayúsculas (`ORG_…`) | `401` | Los usernames distinguen mayúsculas. |
+| LOG-04 | username de REG-01 con otras mayúsculas (`ORG_…`) y su password | `200` | El login no distingue mayúsculas en el username. |
 | LOG-05 | sin `password` | `400` `username and password are required` | Campo obligatorio. |
 | LOG-06 | sin `username` | `400`, mismo mensaje | Campo obligatorio. |
 | LOG-07 | usuario de REG-12, `abcdefg1` | `200` | Un usuario creado en el valor límite puede iniciar sesión. |
@@ -97,6 +102,8 @@ Contrato para servicios downstream. Acepta el token en el body (`{"token"}`) o e
 | VAL-05 | token de LOG-01 con `role` cambiado a `VENUE_OWNER` y la firma original | `401` `Invalid token signature` | Simula una escalada de privilegios: modificar el payload invalida la firma. |
 | VAL-06 | token bien formado firmado con otro secreto | `401` `Invalid token signature` | Solo valen los tokens firmados con `JWT_SECRET`. |
 | VAL-07 | token firmado con `jwtSecret` y `exp` en el pasado | `401` `Token expired` | Expiración. Si `jwtSecret` no coincide con el `.env`, la respuesta será `Invalid token signature`. |
+| VAL-08 | token firmado con `jwtSecret` pero con `alg` HS512 | `401` `Invalid token signature` | Solo se acepta HS256 (el contrato). |
+| VAL-09 | token firmado con `jwtSecret` sin claim `exp` | `401` `Invalid token signature` | Un token sin vencimiento no lo emitió este servicio. |
 
 ## 06 · JWKS — `GET /.well-known/jwks.json` (PA-08-T2)
 
@@ -109,6 +116,9 @@ Contrato para servicios downstream. Acepta el token en el body (`{"token"}`) o e
 | ID | Entrada | Resultado esperado | Interpretación |
 |---|---|---|---|
 | GEN-01 | `GET /no-existe` | `404` `{"error":"Not found"}` | Rutas desconocidas. |
+| GEN-02 | Cualquier request | Sin cabecera `X-Powered-By` | No se anuncia el framework. |
+| GEN-03 | 11 `POST /auth/login` con password incorrecto desde la misma IP | Los 10 primeros `401`; el 11.º `429` `Too many failed attempts, try again later` con `Retry-After` | Rate limit (`RATE_LIMIT_MAX_FAILED`, `RATE_LIMIT_WINDOW_MS`). Solo cuentan los `401`: los logins correctos y los `400` no. Reinicia el servicio para limpiar el contador. |
+| GEN-04 | 11 `POST /invitations` con credencial de staff incorrecta | El 11.º `429`, aunque lleve la credencial correcta | El límite va antes del guard: frena la fuerza bruta contra la credencial de staff. Contador independiente del de login. |
 
 ## 08 · Resiliencia — Redis o Postgres caídos
 
@@ -118,11 +128,11 @@ Casos manuales (no están en Postman, porque hay que parar un contenedor). Cada 
 |---|---|---|---|
 | RES-01 | `docker compose stop redis`; `POST /auth/register` con un código válido | `503` `{"error":"Service temporarily unavailable"}`, header `Retry-After`, en menos de 0,5 s | Fail closed: sin Redis no se sabe si el código expiró, así que no se acepta. El código **no** se consume. |
 | RES-02 | Igual que RES-01, a partir del sexto intento | `503` en unos milisegundos | El circuito está abierto: se responde sin llamar a Redis. |
-| RES-03 | Redis parado; `POST /invitations` | `503` | La invitación no puede empezar su ventana de validez. Si llegó a guardarse en Postgres, cuenta como expirada. |
+| RES-03 | Redis parado; `POST /invitations` | `503`, y no se guarda ninguna fila en `invitations` | La ventana de validez se abre antes de guardar la invitación, así que no quedan invitaciones huérfanas. |
 | RES-04 | Redis parado; `POST /auth/login` | Igual que con Redis arriba (`200` / `401`) | El login solo usa Postgres. |
 | RES-05 | Redis parado; `POST /auth/validate` y `GET /.well-known/jwks.json` | Igual que con Redis arriba | No tocan ningún store. |
 | RES-06 | `docker compose start redis`; esperar `CIRCUIT_BREAKER_HALF_OPEN_AFTER_MS` (10 s); `POST /auth/register` | `201` | La primera petición es la de prueba del estado semiabierto; al salir bien, el circuito se cierra. |
-| RES-07 | `docker compose stop postgres`; `POST /auth/login` | `503` | Mismo comportamiento con Postgres. |
+| RES-07 | `docker compose stop postgres`; `POST /auth/login` | `503` en 3 s como mucho (`PG_BUDGET_MS`) | Mismo comportamiento con Postgres. El servicio sigue vivo (no se cae por el error del pool) y se recupera solo al volver Postgres. |
 
 ## Defectos corregidos
 
