@@ -52,7 +52,7 @@ function buildSpec() {
           TooManyFailedAttempts: {
             description:
               'Too many failed attempts from this client IP within the window (RATE_LIMIT_MAX_FAILED / ' +
-              'RATE_LIMIT_WINDOW_MS). Successful attempts do not count.',
+              'RATE_LIMIT_WINDOW_MS). Only rejected credentials (401) count.',
             headers: { 'Retry-After': { $ref: '#/components/headers/RetryAfter' } },
             content: {
               'application/json': {

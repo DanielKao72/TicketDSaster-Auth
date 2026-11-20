@@ -80,6 +80,20 @@ describe('Rate limit de intentos fallidos', () => {
     assert.equal(blocked.status, 429);
   });
 
+  test('las peticiones inválidas (400) no cuentan, solo las credenciales rechazadas', async () => {
+    for (let attempt = 1; attempt <= RATE_LIMIT.maxFailedAttempts + 2; attempt += 1) {
+      const res = await post('/invitations', { role: 'FAN' }, {
+        Authorization: basicAuth(STAFF.username, STAFF.password),
+      });
+      assert.equal(res.status, 400);
+    }
+
+    const res = await post('/invitations', { role: 'ORGANIZER' }, {
+      Authorization: basicAuth(STAFF.username, STAFF.password),
+    });
+    assert.equal(res.status, 201);
+  });
+
   test('login e invitaciones llevan contadores separados', async () => {
     for (let attempt = 1; attempt <= RATE_LIMIT.maxFailedAttempts; attempt += 1) {
       await post('/auth/login', { username: 'nadie', password: 'Wrong1234' });

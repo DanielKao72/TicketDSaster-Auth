@@ -1,10 +1,10 @@
 const { rateLimit } = require('express-rate-limit');
 
 // Brute-force protection for the credential endpoints (POST /auth/login and
-// POST /invitations). Only failed attempts count (any response >= 400): a
-// client that keeps logging in successfully is never blocked. Once a client IP
-// reaches `maxFailedAttempts` within `windowMs`, the route answers 429 until
-// the window resets.
+// POST /invitations). Only rejected credentials count (401 responses): a
+// client that logs in successfully, or sends an invalid body (400), is never
+// pushed towards the limit. Once a client IP reaches `maxFailedAttempts`
+// within `windowMs`, the route answers 429 until the window resets.
 //
 // The counters live in memory, so the limit applies per replica. Each
 // instance has its own store, so every protected route counts separately.
@@ -16,6 +16,7 @@ class FailedAttemptLimiter {
       windowMs,
       limit: maxFailedAttempts,
       skipSuccessfulRequests: true,
+      requestWasSuccessful: (req, res) => res.statusCode !== 401,
       standardHeaders: 'draft-6',
       legacyHeaders: false,
       handler: (req, res, next, options) => {

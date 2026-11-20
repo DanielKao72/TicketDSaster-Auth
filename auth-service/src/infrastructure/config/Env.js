@@ -51,7 +51,7 @@ module.exports = {
   bcryptSaltRounds: Number(process.env.BCRYPT_SALT_ROUNDS || 10),
 
   // Brute-force protection for POST /auth/login and POST /invitations: after
-  // this many failed attempts from one client IP within the window, the route
+  // this many rejected credentials (401) from one client IP within the window, the route
   // answers 429 until the window resets. Counted in memory, per replica.
   rateLimit: {
     windowMs: Number(process.env.RATE_LIMIT_WINDOW_MS || 900000), // 15 min
