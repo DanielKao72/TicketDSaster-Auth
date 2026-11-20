@@ -102,6 +102,7 @@ class App {
      * @openapi
      * /health:
      *   get:
+     *     tags: [Operations]
      *     summary: Health check
      *     description: >
      *       Always 200 while the process is up (it backs the Docker HEALTHCHECK).

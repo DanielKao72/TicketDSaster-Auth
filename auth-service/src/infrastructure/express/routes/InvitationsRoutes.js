@@ -27,6 +27,55 @@ class InvitationsRoutes {
   build() {
     const router = express.Router();
 
+    /**
+     * @openapi
+     * /invitations:
+     *   post:
+     *     tags: [Staff]
+     *     summary: Generate a single-use invitation code
+     *     description: >
+     *       PA-01. Staff only (HTTP Basic Auth with the staff credential). The
+     *       code is valid for INVITATION_TTL_SECONDS (5 minutes by default) and
+     *       can be used once. Failed attempts, including wrong staff
+     *       credentials, are rate limited per client IP.
+     *     security:
+     *       - staffBasicAuth: []
+     *     requestBody:
+     *       required: true
+     *       content:
+     *         application/json:
+     *           schema:
+     *             type: object
+     *             required: [role]
+     *             properties:
+     *               role: { $ref: '#/components/schemas/Role' }
+     *     responses:
+     *       201:
+     *         description: Invitation created
+     *         content:
+     *           application/json:
+     *             schema:
+     *               type: object
+     *               properties:
+     *                 code: { type: string, example: QDAK-EB4S-NXMN }
+     *                 role: { $ref: '#/components/schemas/Role' }
+     *                 createdAt: { type: string, format: date-time }
+     *       400:
+     *         description: Malformed JSON or a missing or invalid role.
+     *         content:
+     *           application/json:
+     *             schema: { $ref: '#/components/schemas/Error' }
+     *       401:
+     *         description: Missing or wrong staff credential. Sent before the body is parsed.
+     *         headers:
+     *           WWW-Authenticate:
+     *             schema: { type: string, example: 'Basic realm="D-Saster Staff", charset="UTF-8"' }
+     *         content:
+     *           application/json:
+     *             schema: { $ref: '#/components/schemas/Error' }
+     *       429: { $ref: '#/components/responses/TooManyFailedAttempts' }
+     *       503: { $ref: '#/components/responses/ServiceUnavailable' }
+     */
     router.post(
       '/',
       this.invitationsLimiter.handle,
