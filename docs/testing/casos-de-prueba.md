@@ -15,7 +15,7 @@ Casos manuales y automatizados para las funcionalidades implementadas. Todos est
 
 Si ejecutas requests sueltos, respeta las dependencias: los REG necesitan los códigos de INV-01 a INV-03, LOG-01 necesita REG-01 y los VAL necesitan el token de LOG-01. Sin `staffUsername` y `staffPassword`, todos los INV responden `401`.
 
-Resultado esperado: **109 aserciones, 0 fallos**.
+Resultado esperado: **110 aserciones, 0 fallos**.
 
 El almacenamiento es en memoria: al reiniciar el contenedor se pierden usuarios, credenciales e invitaciones.
 
@@ -23,7 +23,8 @@ El almacenamiento es en memoria: al reiniciar el contenedor se pierden usuarios,
 
 | ID | Entrada | Resultado esperado | Interpretación |
 |---|---|---|---|
-| H-01 | Sin body | `200` `{"status":"ok"}` | El servicio está arriba. Es el endpoint que usa el `HEALTHCHECK` del Dockerfile. |
+| H-01 | Sin body | `200` `{"status":"ok","dependencies":{"postgres":"closed","redis":"closed"}}` | El servicio está arriba. Es el endpoint que usa el `HEALTHCHECK` del Dockerfile. `dependencies` muestra el estado del circuit breaker de cada store. |
+| H-02 | `docker compose stop redis` y luego 5 `POST /auth/register` | `200` `{"status":"degraded","dependencies":{"postgres":"closed","redis":"open"}}` | Sigue respondiendo `200` para que Docker no reinicie el contenedor, pero avisa de que el circuito de Redis está abierto. El estado cambia a `half-open` y `closed` con la siguiente petición que pase después de `CIRCUIT_BREAKER_HALF_OPEN_AFTER_MS`. |
 
 ## 02 · Invitaciones — `POST /invitations` (PA-01)
 
@@ -108,6 +109,20 @@ Contrato para servicios downstream. Acepta el token en el body (`{"token"}`) o e
 | ID | Entrada | Resultado esperado | Interpretación |
 |---|---|---|---|
 | GEN-01 | `GET /no-existe` | `404` `{"error":"Not found"}` | Rutas desconocidas. |
+
+## 08 · Resiliencia — Redis o Postgres caídos
+
+Casos manuales (no están en Postman, porque hay que parar un contenedor). Cada llamada a un store pasa por `Fallback( CircuitBreaker( Retry( Timeout( llamada ) ) ) )`. Los cubren `ResilienceRoutes.test.js` y `ResiliencePolicy.test.js`.
+
+| ID | Entrada | Resultado esperado | Interpretación |
+|---|---|---|---|
+| RES-01 | `docker compose stop redis`; `POST /auth/register` con un código válido | `503` `{"error":"Service temporarily unavailable"}`, header `Retry-After`, en menos de 0,5 s | Fail closed: sin Redis no se sabe si el código expiró, así que no se acepta. El código **no** se consume. |
+| RES-02 | Igual que RES-01, a partir del sexto intento | `503` en unos milisegundos | El circuito está abierto: se responde sin llamar a Redis. |
+| RES-03 | Redis parado; `POST /invitations` | `503` | La invitación no puede empezar su ventana de validez. Si llegó a guardarse en Postgres, cuenta como expirada. |
+| RES-04 | Redis parado; `POST /auth/login` | Igual que con Redis arriba (`200` / `401`) | El login solo usa Postgres. |
+| RES-05 | Redis parado; `POST /auth/validate` y `GET /.well-known/jwks.json` | Igual que con Redis arriba | No tocan ningún store. |
+| RES-06 | `docker compose start redis`; esperar `CIRCUIT_BREAKER_HALF_OPEN_AFTER_MS` (10 s); `POST /auth/register` | `201` | La primera petición es la de prueba del estado semiabierto; al salir bien, el circuito se cierra. |
+| RES-07 | `docker compose stop postgres`; `POST /auth/login` | `503` | Mismo comportamiento con Postgres. |
 
 ## Defectos corregidos
 

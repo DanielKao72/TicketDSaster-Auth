@@ -11,8 +11,53 @@ services:
       - ./auth-service/.env
     environment:
       - NODE_ENV=development
+      # Dentro de la red de Docker las bases se alcanzan por nombre de servicio;
+      # sobrescriben los valores de .env, que apuntan a localhost.
+      - DATABASE_URL=postgres://auth:auth@postgres:5432/auth
+      - REDIS_URL=redis://redis:6379
     volumes:
       - ./auth-service/src:/app/src
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    networks:
+      - dsaster-net
+
+  # Usuarios (con password_hash) e invitaciones (con la columna used).
+  postgres:
+    image: postgres:16-alpine
+    container_name: ticketdsaster-auth-postgres
+    environment:
+      - POSTGRES_USER=auth
+      - POSTGRES_PASSWORD=auth
+      - POSTGRES_DB=auth
+    ports:
+      # Host 55432: evita chocar con un Postgres instalado localmente (5432/5433).
+      - "55432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U auth -d auth"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+    networks:
+      - dsaster-net
+
+  # Vigencia de 5 minutos de cada codigo de invitacion (TTL de la clave).
+  redis:
+    image: redis:7-alpine
+    container_name: ticketdsaster-auth-redis
+    ports:
+      # Host 6380: evita chocar con un Redis local (o el relay de WSL) en 6379.
+      - "6380:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
     networks:
       - dsaster-net
 
@@ -32,6 +77,9 @@ services:
   #     - JWT_SECRET=${JWT_SECRET}
   #   networks:
   #     - dsaster-net
+
+volumes:
+  pgdata:
 
 networks:
   dsaster-net:

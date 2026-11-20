@@ -91,6 +91,43 @@ class CodeGenerator {
   }
 }
 
+/** Time-bound validity of invitation codes: a code is only usable while active (PA-03). */
+class InvitationExpirationStore {
+  /** @param {string} code @param {number} ttlSeconds */
+  async markActive(code, ttlSeconds) {
+    throw notImplemented('InvitationExpirationStore', 'markActive');
+  }
+
+  /** @param {string} code @returns {Promise<boolean>} */
+  async isActive(code) {
+    throw notImplemented('InvitationExpirationStore', 'isActive');
+  }
+
+  /** @param {string} code */
+  async revoke(code) {
+    throw notImplemented('InvitationExpirationStore', 'revoke');
+  }
+}
+
+/**
+ * Runs several writes atomically. `work` receives repositories bound to the
+ * same transaction and its result is returned once everything is committed.
+ */
+class UnitOfWork {
+  /**
+   * @template T
+   * @param {(repositories: {
+   *   userRepository: UserRepository,
+   *   credentialRepository: CredentialRepository,
+   *   invitationRepository: InvitationRepository,
+   * }) => Promise<T>} work
+   * @returns {Promise<T>}
+   */
+  async run(work) {
+    throw notImplemented('UnitOfWork', 'run');
+  }
+}
+
 module.exports = {
   UserRepository,
   CredentialRepository,
@@ -98,4 +135,6 @@ module.exports = {
   PasswordHasher,
   TokenService,
   CodeGenerator,
+  InvitationExpirationStore,
+  UnitOfWork,
 };
