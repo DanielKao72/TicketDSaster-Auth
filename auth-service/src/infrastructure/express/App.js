@@ -95,6 +95,8 @@ class App {
   build() {
     const app = express();
     app.set('trust proxy', this.trustProxy);
+    // Do not advertise the framework (and its version range) to clients.
+    app.disable('x-powered-by');
 
     /**
      * @openapi

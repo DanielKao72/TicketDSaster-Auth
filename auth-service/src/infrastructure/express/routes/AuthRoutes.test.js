@@ -49,6 +49,11 @@ describe("PA-08-T2: Downstream JWT verification contract & JWKS", () => {
     assert.equal(body.valid, false);
   });
 
+  it("no expone la cabecera X-Powered-By", async () => {
+    const res = await fetch(`${baseUrl}/health`);
+    assert.equal(res.headers.get("x-powered-by"), null);
+  });
+
   it("POST /auth/validate rechaza con 401 un token HS512 o sin exp firmado con el secreto", async () => {
     const claims = { sub: "usr-999", role: "ORGANIZER" };
     const tokens = [
